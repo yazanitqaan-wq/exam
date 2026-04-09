@@ -15,17 +15,23 @@ export default function Home() {
   const [isExamActive, setIsExamActive] = useState(false);
 
   useEffect(() => {
-    let channel: any;
+    if (!studentId) return;
 
-    const fetchStudentClassAndExams = async () => {
+    let isMounted = true;
+    // إنشاء القناة فوراً لضمان إمكانية تنظيفها في دالة cleanup
+    const channelId = `exam_sessions_${studentId}_${Date.now()}`;
+    const channel = supabase.channel(channelId);
+
+    const setupRealtime = async () => {
       try {
-        // 1. Get student's class
+        // 1. جلب بيانات الصف الخاص بالطالب
         const { data: studentData, error: studentError } = await supabase
           .from('students')
           .select('grade, section')
           .eq('id_number', studentId)
           .single();
 
+        if (!isMounted) return;
         if (studentError || !studentData) {
           console.error('Error fetching student data:', studentError);
           return;
@@ -35,7 +41,7 @@ export default function Home() {
         const section = studentData.section?.trim() || '';
         const studentClassExact = `${grade} ${section}`.trim();
 
-        // 2. Fetch active/upcoming exams for this class
+        // 2. دالة جلب الامتحانات المتاحة
         const fetchExams = async () => {
           const { data: sessions, error } = await supabase
             .from('exam_sessions')
@@ -48,6 +54,7 @@ export default function Home() {
             `)
             .order('start_time', { ascending: true });
 
+          if (!isMounted) return;
           if (error) {
             console.error('Error fetching sessions:', error);
             return;
@@ -56,15 +63,14 @@ export default function Home() {
           if (sessions) {
             const now = new Date();
             const validSession = sessions.find(s => {
-              // Check if end time is in the future
+              // التحقق من أن وقت الانتهاء في المستقبل
               if (new Date(s.end_time) <= now) return false;
               
-              // Check class match (exact or partial)
+              // التحقق من مطابقة الصف (تطابق تام أو جزئي)
               const targetClasses = Array.isArray(s.target_classes) ? s.target_classes : [];
               return targetClasses.some(c => 
                 c === studentClassExact || 
                 (grade && section && c.includes(grade) && c.includes(section)) ||
-                // Fallback: if target class is just the grade
                 (grade && c === grade)
               );
             });
@@ -75,28 +81,32 @@ export default function Home() {
 
         await fetchExams();
 
-        // 3. Subscribe to real-time changes
-        channel = supabase
-          .channel(`exam_sessions_${studentId}`)
+        if (!isMounted) return;
+
+        // 3. الاشتراك في التحديثات المباشرة
+        channel
           .on('postgres_changes', { event: '*', schema: 'public', table: 'exam_sessions' }, () => {
-            // Refetch exams when any change happens
+            // إعادة جلب الامتحانات عند حدوث أي تغيير
             fetchExams();
           })
-          .subscribe();
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              console.log('Successfully subscribed to exam_sessions');
+            }
+          });
 
       } catch (error) {
-        console.error('Error fetching exams:', error);
+        if (isMounted) {
+          console.error('Error in setupRealtime:', error);
+        }
       }
     };
 
-    if (studentId) {
-      fetchStudentClassAndExams();
-    }
+    setupRealtime();
 
     return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
+      isMounted = false;
+      supabase.removeChannel(channel);
     };
   }, [studentId]);
 
