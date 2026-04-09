@@ -27,6 +27,19 @@ export default function Home() {
     const channelId = `exam_sessions_${studentId}_${Date.now()}`;
     const channel = supabase.channel(channelId);
 
+    // دالة لتوحيد النصوص العربية للمقارنة الصحيحة
+    const normalizeArabic = (text: string) => {
+      if (!text) return '';
+      return text
+        .trim()
+        .replace(/\s+/g, '') // إزالة جميع المسافات
+        .replace(/[أإآ]/g, 'ا') // توحيد الألف
+        .replace(/ة/g, 'ه')    // توحيد التاء المربوطة
+        .replace(/ى/g, 'ي')    // توحيد الياء
+        .replace(/^ال/, '')    // إزالة "ال" التعريف من البداية
+        .replace(/ال/g, '');   // إزالة "ال" التعريف من أي مكان (لضمان التطابق مثل "الحادي عشر" و "حادي عشر")
+    };
+
     const setupRealtime = async () => {
       setIsLoading(true);
       try {
@@ -49,8 +62,10 @@ export default function Home() {
         const grade = studentData.grade?.trim() || '';
         const section = studentData.section?.trim() || '';
         const studentClassExact = `${grade} ${section}`.trim();
+        const normalizedStudentClass = normalizeArabic(studentClassExact);
         
         console.log('Student Class:', studentClassExact);
+        console.log('Normalized Student Class:', normalizedStudentClass);
 
         // 2. دالة جلب الامتحانات المتاحة
         const fetchExams = async () => {
@@ -79,24 +94,32 @@ export default function Home() {
           if (sessions) {
             const now = new Date();
             const validSession = sessions.find(s => {
-              // التحقق من أن وقت الانتهاء في المستقبل (أو لم ينتهِ بعد بـ 10 دقائق)
+              // التحقق من أن وقت الانتهاء في المستقبل
               const endTime = new Date(s.end_time);
               if (endTime <= now) return false;
               
-              // التحقق من مطابقة الصف
+              // التحقق من مطابقة الصف باستخدام التطابق الذكي
               const targetClasses = Array.isArray(s.target_classes) ? s.target_classes : [];
               const isClassMatch = targetClasses.some(c => {
-                const cleanC = c.trim().replace(/\s+/g, ' ');
-                const cleanStudentClass = studentClassExact.trim().replace(/\s+/g, ' ');
+                const normalizedTarget = normalizeArabic(c);
                 
-                // تطابق تام
-                if (cleanC === cleanStudentClass) return true;
+                // 1. تطابق تام بعد التوحيد
+                if (normalizedTarget === normalizedStudentClass) return true;
                 
-                // تطابق بدون مسافات (للحالات الصعبة مثل "الحادي عشر ج" و "الحادي عشرج")
-                if (cleanC.replace(/\s+/g, '') === cleanStudentClass.replace(/\s+/g, '')) return true;
+                // 2. إذا كان الصف المختار يحتوي على الصف والشعبة الخاصين بالطالب
+                const normalizedGrade = normalizeArabic(grade);
+                const normalizedSection = normalizeArabic(section);
+                
+                if (normalizedGrade && normalizedSection && 
+                    normalizedTarget.includes(normalizedGrade) && 
+                    normalizedTarget.includes(normalizedSection)) {
+                  return true;
+                }
 
-                return (grade && section && cleanC.includes(grade) && cleanC.includes(section)) ||
-                       (grade && cleanC === grade);
+                // 3. تطابق مع الصف فقط (إذا كان الامتحان لكل الشعب)
+                if (normalizedGrade && normalizedTarget === normalizedGrade) return true;
+
+                return false;
               });
 
               return isClassMatch;
@@ -106,7 +129,7 @@ export default function Home() {
             setUpcomingSession(validSession || null);
             
             if (!validSession && sessions.length > 0) {
-              setDebugInfo(`تم العثور على ${sessions.length} جلسات، ولكن لا توجد جلسة تطابق صفك (${studentClassExact})`);
+              setDebugInfo(`تم العثور على ${sessions.length} جلسات، ولكن لا توجد جلسة تطابق صفك (${studentClassExact}) بعد توحيد النصوص.`);
             } else if (sessions.length === 0) {
               setDebugInfo('لا توجد أي جلسات امتحانات مضافة في قاعدة البيانات حالياً.');
             }

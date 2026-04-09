@@ -8,11 +8,11 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 
 const AVAILABLE_CLASSES = [
-  'عاشر ب',
-  'عاشر ج',
-  'حادي عشر أ',
-  'حادي عشر ج',
-  'حادي عشر د'
+  'العاشر ب',
+  'العاشر ج',
+  'الحادي عشر أ',
+  'الحادي عشر ج',
+  'الحادي عشر د'
 ];
 
 // Helper to generate arrays for dropdowns
