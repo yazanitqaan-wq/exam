@@ -264,12 +264,17 @@ export default function PublishExam() {
     if (!sessionToDelete) return;
     setIsDeleting(true);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('exam_sessions')
         .delete()
-        .eq('id', sessionToDelete);
+        .eq('id', sessionToDelete)
+        .select();
         
       if (error) throw error;
+      
+      if (!data || data.length === 0) {
+        throw new Error("لم يتم الحذف! يرجى التأكد من تفعيل صلاحية الحذف (DELETE Policy) لجدول exam_sessions في Supabase.");
+      }
       
       setSessionToDelete(null);
       fetchPublishedSessions();
