@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+// تحديث إجباري: هذا التعليق لإجبار Vercel على عمل Build جديد ومسح الكاش القديم
 import { MainLayout } from '@/layouts/MainLayout';
 import { motion } from 'motion/react';
 import { 
@@ -14,7 +15,6 @@ import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { Question } from '@/types/exam';
 import { PassageGenerator } from '@/components/exam/PassageGenerator';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
 
 // Initialize PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
@@ -23,7 +23,6 @@ type GenerationMethod = 'manual' | 'text' | 'pdf' | 'passage';
 
 export default function CreateExam() {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<GenerationMethod>('manual');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
@@ -53,11 +52,6 @@ export default function CreateExam() {
   };
 
   const handleConfirmSave = async () => {
-    if (!user) {
-      alert('يجب تسجيل الدخول كأدمن لحفظ الاختبار');
-      return;
-    }
-
     setIsSaving(true);
     try {
       // 1. Insert Exam
@@ -67,8 +61,10 @@ export default function CreateExam() {
           title: examTitle,
           subject: subject || 'غير محدد',
           grade: grade || 'غير محدد',
-          duration_minutes: parseInt(duration) || 60,
-          teacher_id: user.id // الآن نرسل المعرف الحقيقي للمعلم المسجل
+          duration_minutes: parseInt(duration) || 60
+          // Note: teacher_id is omitted here because we are not using Supabase Auth yet.
+          // You will need to alter the exams table to make teacher_id NULLABLE:
+          // ALTER TABLE exams ALTER COLUMN teacher_id DROP NOT NULL;
         })
         .select()
         .single();
