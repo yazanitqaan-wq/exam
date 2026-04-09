@@ -6,6 +6,7 @@ import AddStudent from './routes/AddStudent';
 import StudentDetails from './routes/StudentDetails';
 import CreateExam from './routes/CreateExam';
 import PublishExam from './routes/PublishExam';
+import TakeExam from './routes/TakeExam';
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
       <Route path="/student/:id" element={<StudentDetails />} />
       <Route path="/create-exam" element={<CreateExam />} />
       <Route path="/publish-exam" element={<PublishExam />} />
+      <Route path="/take-exam/:sessionId" element={<TakeExam />} />
     </Routes>
   );
 }

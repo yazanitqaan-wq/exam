@@ -11,13 +11,12 @@ import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
 import { GoogleGenAI, Type as GenAIType } from '@google/genai';
 import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { Question } from '@/types/exam';
 import { PassageGenerator } from '@/components/exam/PassageGenerator';
 import { supabase } from '@/lib/supabase';
 
 // Initialize PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 type GenerationMethod = 'manual' | 'text' | 'pdf' | 'passage';
 
@@ -154,7 +153,7 @@ export default function CreateExam() {
       setGenerationProgress(50);
       setGenerationStatus('جاري الاتصال بالذكاء الاصطناعي لتوليد الأسئلة...');
 
-      const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       const prompt = `
         You are an expert teacher creating an exam. 

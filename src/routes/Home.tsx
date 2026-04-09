@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/layouts/MainLayout';
-import { motion } from 'motion/react';
-import { Clock, Calendar, ArrowLeft, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Clock, Calendar, ArrowLeft, Loader2, BookOpen } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
 
 export default function Home() {
+  const navigate = useNavigate();
   const userName = localStorage.getItem('studentName') || 'المستخدم';
   const studentId = localStorage.getItem('studentId');
   
   const [upcomingSession, setUpcomingSession] = useState<any>(null);
   const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
   const [isExamActive, setIsExamActive] = useState(false);
+  const [showEnterConfirm, setShowEnterConfirm] = useState(false);
+  const [isEntering, setIsEntering] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
   const [debugInfo, setDebugInfo] = useState<string>('');
@@ -201,6 +205,13 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [upcomingSession]);
 
+  const handleEnterExam = () => {
+    setIsEntering(true);
+    setTimeout(() => {
+      navigate(`/take-exam/${upcomingSession.id}`);
+    }, 1500);
+  };
+
   return (
     <MainLayout>
       <div className="space-y-8 pb-12">
@@ -262,8 +273,11 @@ export default function Home() {
                       </p>
                       
                       {isExamActive && (
-                        <Button className="bg-white text-blue-600 hover:bg-blue-50 font-bold px-8 py-6 rounded-2xl text-lg w-full sm:w-auto">
-                          بدء الاختبار الآن
+                        <Button 
+                          onClick={() => setShowEnterConfirm(true)}
+                          className="bg-white text-blue-600 hover:bg-blue-50 font-bold px-8 py-6 rounded-2xl text-lg w-full sm:w-auto"
+                        >
+                          دخول الاختبار الآن
                           <ArrowLeft className="w-5 h-5 mr-2" />
                         </Button>
                       )}
@@ -312,6 +326,54 @@ export default function Home() {
         </motion.div>
 
       </div>
+
+      {/* Enter Exam Confirmation Modal */}
+      <AnimatePresence>
+        {showEnterConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white rounded-[2.5rem] p-8 sm:p-10 max-w-md w-full shadow-2xl border border-blue-100"
+            >
+              <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <BookOpen className="w-10 h-10" />
+              </div>
+              <h3 className="text-2xl font-black text-center text-gray-900 mb-4">تأكيد دخول الاختبار</h3>
+              <p className="text-center text-gray-500 mb-8 leading-relaxed">
+                أنت على وشك البدء في اختبار <span className="font-bold text-blue-600">"{Array.isArray(upcomingSession.exams) ? upcomingSession.exams[0]?.title : upcomingSession.exams?.title}"</span>. 
+                يرجى التأكد من استقرار اتصال الإنترنت لديك وعدم مغادرة الصفحة أثناء الحل.
+              </p>
+              
+              <div className="flex flex-col gap-3">
+                <Button
+                  onClick={handleEnterExam}
+                  disabled={isEntering}
+                  className="w-full py-6 bg-blue-600 hover:bg-blue-700 rounded-2xl text-lg font-bold shadow-lg shadow-blue-100"
+                >
+                  {isEntering ? (
+                    <>
+                      <Loader2 className="w-5 h-5 ml-2 animate-spin" />
+                      جاري الدخول...
+                    </>
+                  ) : (
+                    'موافق، ابدأ الآن'
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowEnterConfirm(false)}
+                  disabled={isEntering}
+                  className="w-full py-6 rounded-2xl text-gray-400 hover:text-gray-600"
+                >
+                  إلغاء
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </MainLayout>
   );
 }

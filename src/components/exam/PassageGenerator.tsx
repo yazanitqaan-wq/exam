@@ -36,7 +36,7 @@ export function PassageGenerator({ onGenerate, language, setLanguage }: PassageG
       setProgress(40);
       setStatus('جاري الاتصال بالذكاء الاصطناعي...');
 
-      const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       const prompt = `
         You are an expert teacher creating a reading comprehension exam.
