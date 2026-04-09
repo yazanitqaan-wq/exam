@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/layouts/MainLayout';
 import { motion } from 'motion/react';
-import { ArrowRight, Send, Clock, Target, CheckCircle2, Circle, AlertCircle, ChevronDown } from 'lucide-react';
+import { ArrowRight, Send, Clock, Target, CheckCircle2, Circle, AlertCircle, ChevronDown, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 
 const AVAILABLE_CLASSES = [
   'عاشر ب',
@@ -14,16 +15,181 @@ const AVAILABLE_CLASSES = [
   'حادي عشر د'
 ];
 
+// Helper to generate arrays for dropdowns
+const generateArray = (start: number, end: number) => Array.from({ length: end - start + 1 }, (_, i) => start + i);
+const DAYS = generateArray(1, 31);
+const MONTHS = generateArray(1, 12);
+const YEARS = generateArray(new Date().getFullYear(), new Date().getFullYear() + 5);
+const HOURS = generateArray(0, 23);
+const MINUTES = generateArray(0, 59);
+
+interface DateTimeState {
+  day: string;
+  month: string;
+  year: string;
+  hour: string;
+  minute: string;
+}
+
+const DateTimeSelector = ({ 
+  label, 
+  value, 
+  onChange 
+}: { 
+  label: string; 
+  value: DateTimeState; 
+  onChange: (val: DateTimeState) => void;
+}) => {
+  const handleChange = (field: keyof DateTimeState, val: string) => {
+    onChange({ ...value, [field]: val });
+  };
+
+  return (
+    <div className="space-y-3 bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+      <label className="text-sm font-bold text-gray-800 flex items-center gap-2">
+        <Calendar className="w-4 h-4 text-purple-500" />
+        {label}
+      </label>
+      
+      <div className="flex flex-col sm:flex-row gap-4">
+        {/* Date Section */}
+        <div className="flex-1 flex gap-2">
+          <div className="relative flex-1">
+            <select 
+              value={value.day} onChange={(e) => handleChange('day', e.target.value)}
+              className="w-full px-3 py-2.5 pr-8 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-white appearance-none cursor-pointer text-sm"
+            >
+              <option value="" disabled>اليوم</option>
+              {DAYS.map(d => <option key={d} value={d}>{d.toString().padStart(2, '0')}</option>)}
+            </select>
+            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          </div>
+          <div className="relative flex-1">
+            <select 
+              value={value.month} onChange={(e) => handleChange('month', e.target.value)}
+              className="w-full px-3 py-2.5 pr-8 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-white appearance-none cursor-pointer text-sm"
+            >
+              <option value="" disabled>الشهر</option>
+              {MONTHS.map(m => <option key={m} value={m}>{m.toString().padStart(2, '0')}</option>)}
+            </select>
+            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          </div>
+          <div className="relative flex-1">
+            <select 
+              value={value.year} onChange={(e) => handleChange('year', e.target.value)}
+              className="w-full px-3 py-2.5 pr-8 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-white appearance-none cursor-pointer text-sm"
+            >
+              <option value="" disabled>السنة</option>
+              {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          </div>
+        </div>
+
+        {/* Time Section */}
+        <div className="flex-1 flex gap-2">
+          <div className="relative flex-1">
+            <select 
+              value={value.hour} onChange={(e) => handleChange('hour', e.target.value)}
+              className="w-full px-3 py-2.5 pr-8 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-white appearance-none cursor-pointer text-sm"
+            >
+              <option value="" disabled>الساعة (24)</option>
+              {HOURS.map(h => <option key={h} value={h}>{h.toString().padStart(2, '0')}</option>)}
+            </select>
+            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          </div>
+          <span className="flex items-center text-gray-400 font-bold">:</span>
+          <div className="relative flex-1">
+            <select 
+              value={value.minute} onChange={(e) => handleChange('minute', e.target.value)}
+              className="w-full px-3 py-2.5 pr-8 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-white appearance-none cursor-pointer text-sm"
+            >
+              <option value="" disabled>الدقيقة</option>
+              {MINUTES.map(m => <option key={m} value={m}>{m.toString().padStart(2, '0')}</option>)}
+            </select>
+            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function PublishExam() {
   const navigate = useNavigate();
-  const [exams, setExams] = useState<any[]>([]); // Empty array, waiting for real data
+  const [exams, setExams] = useState<any[]>([]);
+  const [isLoadingExams, setIsLoadingExams] = useState(true);
   const [selectedExamId, setSelectedExamId] = useState<string>('');
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
-  const [startTime, setStartTime] = useState('');
-  const [endTime, setEndTime] = useState('');
+  
+  const [startDateTime, setStartDateTime] = useState<DateTimeState>({ day: '', month: '', year: '', hour: '', minute: '' });
+  const [endDateTime, setEndDateTime] = useState<DateTimeState>({ day: '', month: '', year: '', hour: '', minute: '' });
+  
   const [shuffleOption, setShuffleOption] = useState('partial');
   const [resultsOption, setResultsOption] = useState('after_30_mins');
   const [isPublishing, setIsPublishing] = useState(false);
+
+  const [publishedSessions, setPublishedSessions] = useState<any[]>([]);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(true);
+
+  useEffect(() => {
+    fetchExams();
+    fetchPublishedSessions();
+  }, []);
+
+  const fetchPublishedSessions = async () => {
+    setIsLoadingSessions(true);
+    try {
+      const { data, error } = await supabase
+        .from('exam_sessions')
+        .select(`
+          id,
+          target_classes,
+          start_time,
+          end_time,
+          status,
+          exams (
+            title,
+            subject,
+            grade
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setPublishedSessions(data || []);
+    } catch (error) {
+      console.error('Error fetching published sessions:', error);
+    } finally {
+      setIsLoadingSessions(false);
+    }
+  };
+
+  const fetchExams = async () => {
+    setIsLoadingExams(true);
+    try {
+      const { data, error } = await supabase
+        .from('exams')
+        .select('*, questions(count)')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      const formattedExams = data.map(exam => ({
+        id: exam.id,
+        title: exam.title,
+        subject: exam.subject,
+        grade: exam.grade,
+        questionsCount: exam.questions[0]?.count || 0
+      }));
+      
+      setExams(formattedExams);
+    } catch (error) {
+      console.error('Error fetching exams:', error);
+    } finally {
+      setIsLoadingExams(false);
+    }
+  };
 
   const toggleClass = (className: string) => {
     setSelectedClasses(prev => 
@@ -33,19 +199,81 @@ export default function PublishExam() {
     );
   };
 
+  const isValidDateTime = (dt: DateTimeState) => {
+    return dt.day && dt.month && dt.year && dt.hour && dt.minute;
+  };
+
+  const createDateFromState = (dt: DateTimeState) => {
+    return new Date(
+      parseInt(dt.year), 
+      parseInt(dt.month) - 1, 
+      parseInt(dt.day), 
+      parseInt(dt.hour), 
+      parseInt(dt.minute)
+    );
+  };
+
   const handlePublish = async () => {
     if (!selectedExamId) return alert('الرجاء اختيار امتحان');
     if (selectedClasses.length === 0) return alert('الرجاء اختيار شعبة واحدة على الأقل');
-    if (!startTime || !endTime) return alert('الرجاء تحديد موعد البدء والانتهاء');
+    if (!isValidDateTime(startDateTime) || !isValidDateTime(endDateTime)) {
+      return alert('الرجاء تحديد موعد البدء والانتهاء بشكل كامل');
+    }
+
+    const startDate = createDateFromState(startDateTime);
+    const endDate = createDateFromState(endDateTime);
+
+    if (endDate <= startDate) {
+      return alert('يجب أن يكون موعد الانتهاء بعد موعد البدء');
+    }
 
     setIsPublishing(true);
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const { error } = await supabase
+        .from('exam_sessions')
+        .insert({
+          exam_id: selectedExamId,
+          target_classes: selectedClasses,
+          start_time: startDate.toISOString(),
+          end_time: endDate.toISOString(),
+          shuffle_option: shuffleOption,
+          results_option: resultsOption,
+          status: 'scheduled'
+        });
+
+      if (error) throw error;
+
       setIsPublishing(false);
       alert('تم نشر الامتحان بنجاح!');
-      navigate('/profile');
-    }, 1500);
+      fetchPublishedSessions(); // Refresh the list
+      // Reset form
+      setSelectedExamId('');
+      setSelectedClasses([]);
+    } catch (error: any) {
+      console.error('Error publishing exam:', error);
+      alert('حدث خطأ أثناء نشر الامتحان: ' + error.message);
+      setIsPublishing(false);
+    }
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!window.confirm('هل أنت متأكد من حذف هذا النشر؟ لن يتمكن الطلاب من رؤية الامتحان بعد حذفه.')) return;
+    
+    try {
+      const { error } = await supabase
+        .from('exam_sessions')
+        .delete()
+        .eq('id', sessionId);
+        
+      if (error) throw error;
+      
+      alert('تم حذف النشر بنجاح');
+      fetchPublishedSessions();
+    } catch (error: any) {
+      console.error('Error deleting session:', error);
+      alert('حدث خطأ أثناء الحذف: ' + error.message);
+    }
   };
 
   return (
@@ -89,7 +317,9 @@ export default function PublishExam() {
             <h2 className="text-lg sm:text-xl font-bold text-gray-900">1. اختيار الامتحان</h2>
           </div>
 
-          {exams.length === 0 ? (
+          {isLoadingExams ? (
+            <div className="text-center py-12 text-gray-500">جاري تحميل الامتحانات...</div>
+          ) : exams.length === 0 ? (
             <div className="text-center py-12 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Target className="w-8 h-8 text-gray-400" />
@@ -190,26 +420,20 @@ export default function PublishExam() {
             <h2 className="text-lg sm:text-xl font-bold text-gray-900">3. المواعيد والإعدادات</h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-gray-700">موعد بدء الامتحان</label>
-              <input 
-                type="datetime-local" 
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-white"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-gray-700">موعد انتهاء الامتحان</label>
-              <input 
-                type="datetime-local" 
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-white"
-              />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
+          <div className="grid grid-cols-1 gap-6">
+            <DateTimeSelector 
+              label="موعد بدء الامتحان" 
+              value={startDateTime} 
+              onChange={setStartDateTime} 
+            />
+            
+            <DateTimeSelector 
+              label="موعد انتهاء الامتحان" 
+              value={endDateTime} 
+              onChange={setEndDateTime} 
+            />
+
+            <div className="space-y-2 mt-4">
               <label className="text-sm font-bold text-gray-700">خلط الأسئلة (عشوائي)</label>
               <div className="relative">
                 <select 
@@ -224,7 +448,7 @@ export default function PublishExam() {
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
               </div>
             </div>
-            <div className="space-y-2 sm:col-span-2">
+            <div className="space-y-2">
               <label className="text-sm font-bold text-gray-700">عرض النتائج للطالب</label>
               <div className="relative">
                 <select 
@@ -240,6 +464,57 @@ export default function PublishExam() {
               </div>
             </div>
           </div>
+        </motion.div>
+
+        {/* Step 4: Published Sessions */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-white p-4 sm:p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100"
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 shrink-0 bg-green-50 text-green-600 rounded-xl flex items-center justify-center">
+              <Send className="w-5 h-5" />
+            </div>
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900">الامتحانات المنشورة حالياً</h2>
+          </div>
+
+          {isLoadingSessions ? (
+            <div className="text-center py-8 text-gray-500">جاري تحميل الامتحانات المنشورة...</div>
+          ) : publishedSessions.length === 0 ? (
+            <div className="text-center py-8 bg-gray-50 rounded-2xl border border-dashed border-gray-200 text-gray-500">
+              لا يوجد امتحانات منشورة حالياً
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {publishedSessions.map(session => (
+                <div key={session.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 rounded-2xl border border-gray-100 bg-gray-50 gap-4">
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-1">{session.exams?.title}</h3>
+                    <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+                      <span className="bg-white px-2 py-1 rounded border border-gray-200">
+                        الصفوف: {session.target_classes.join('، ')}
+                      </span>
+                      <span className="bg-white px-2 py-1 rounded border border-gray-200">
+                        البدء: {new Date(session.start_time).toLocaleString('ar-EG')}
+                      </span>
+                      <span className="bg-white px-2 py-1 rounded border border-gray-200">
+                        الانتهاء: {new Date(session.end_time).toLocaleString('ar-EG')}
+                      </span>
+                    </div>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => handleDeleteSession(session.id)}
+                    className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 shrink-0"
+                  >
+                    حذف النشر
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </motion.div>
 
       </div>

@@ -47,7 +47,27 @@ export const LoginForm = () => {
     
     try {
       if (role === 'teacher') {
-        // التحقق من المعلم (يزن)
+        // 1. محاولة تسجيل الدخول عبر Supabase Auth أولاً
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email: cleanIdentifier,
+          password: cleanPassword,
+        });
+
+        if (!authError && authData.user) {
+          if (rememberMe) {
+            localStorage.setItem('rememberedRole', 'teacher');
+            localStorage.setItem('rememberedId', cleanIdentifier);
+          }
+          localStorage.setItem('userRole', 'teacher');
+          
+          setIsSuccessLoading(true);
+          setTimeout(() => {
+            navigate('/home');
+          }, 1500);
+          return;
+        }
+
+        // 2. Fallback: التحقق من المعلم (يزن) - الكود القديم
         if (cleanIdentifier === '123456' && cleanPassword === '0') {
           if (rememberMe) {
             localStorage.setItem('rememberedRole', 'teacher');
@@ -63,7 +83,7 @@ export const LoginForm = () => {
             navigate('/home');
           }, 1500);
         } else {
-          setError('خطأ في الرقم السري أو كلمة السر. يرجى إدخال البيانات الصحيحة.');
+          setError(authError ? 'خطأ في البريد الإلكتروني أو كلمة السر.' : 'خطأ في الرقم السري أو كلمة السر. يرجى إدخال البيانات الصحيحة.');
           setIsLoading(false);
         }
       } else if (role === 'student') {
@@ -220,13 +240,13 @@ export const LoginForm = () => {
               <div className="space-y-4 sm:space-y-5 mt-6">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    {role === 'student' ? 'الرمز السري' : 'الرقم السري'}
+                    {role === 'student' ? 'الرمز السري' : 'البريد الإلكتروني أو الرقم السري'}
                   </label>
                   <Input
                     type="text"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder={role === 'student' ? 'أدخل الرمز السري' : 'أدخل الرقم السري'}
+                    placeholder={role === 'student' ? 'أدخل الرمز السري' : 'أدخل البريد الإلكتروني أو الرقم السري'}
                     icon={<User className="w-5 h-5" />}
                     required
                   />

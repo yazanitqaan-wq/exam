@@ -13,6 +13,8 @@ import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { Question } from '@/types/exam';
 import { PassageGenerator } from '@/components/exam/PassageGenerator';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Initialize PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
@@ -21,6 +23,7 @@ type GenerationMethod = 'manual' | 'text' | 'pdf' | 'passage';
 
 export default function CreateExam() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<GenerationMethod>('manual');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
@@ -32,6 +35,74 @@ export default function CreateExam() {
   const [subject, setSubject] = useState('');
   const [grade, setGrade] = useState('');
   const [duration, setDuration] = useState('60');
+
+  // Save Modal State
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveClick = () => {
+    if (!examTitle.trim()) {
+      alert('الرجاء إدخال عنوان الاختبار أولاً');
+      return;
+    }
+    if (questions.length === 0) {
+      alert('الرجاء إضافة سؤال واحد على الأقل');
+      return;
+    }
+    setShowSaveConfirm(true);
+  };
+
+  const handleConfirmSave = async () => {
+    if (!user) {
+      alert('يجب تسجيل الدخول كأدمن لحفظ الاختبار');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // 1. Insert Exam
+      const { data: examData, error: examError } = await supabase
+        .from('exams')
+        .insert({
+          title: examTitle,
+          subject: subject || 'غير محدد',
+          grade: grade || 'غير محدد',
+          duration_minutes: parseInt(duration) || 60,
+          teacher_id: user.id // الآن نرسل المعرف الحقيقي للمعلم المسجل
+        })
+        .select()
+        .single();
+
+      if (examError) throw examError;
+
+      // 2. Insert Questions
+      const questionsToInsert = questions.map((q, index) => ({
+        exam_id: examData.id,
+        question_type: q.type,
+        question_text: q.text,
+        options: q.options || [],
+        correct_answer: q.correctAnswer,
+        passage_excerpt: q.passageExcerpt || null,
+        keep_order: q.keepOrder || false,
+        order_index: index
+      }));
+
+      const { error: questionsError } = await supabase
+        .from('questions')
+        .insert(questionsToInsert);
+
+      if (questionsError) throw questionsError;
+
+      setIsSaving(false);
+      setShowSaveConfirm(false);
+      alert('تم حفظ الاختبار بنجاح!');
+      navigate('/profile');
+    } catch (error: any) {
+      console.error('Error saving exam:', error);
+      alert('حدث خطأ أثناء حفظ الاختبار: ' + error.message);
+      setIsSaving(false);
+    }
+  };
 
   // Generation Settings
   const [mcqCount, setMcqCount] = useState('10');
@@ -204,7 +275,10 @@ export default function CreateExam() {
               <p className="text-gray-500 text-xs sm:text-sm">قم بتصميم اختبارك وتوليد الأسئلة بسهولة</p>
             </div>
           </div>
-          <Button className="w-full sm:w-auto gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 sm:py-2">
+          <Button 
+            onClick={handleSaveClick}
+            className="w-full sm:w-auto gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 sm:py-2"
+          >
             <Save className="w-4 h-4" />
             حفظ الاختبار
           </Button>
@@ -638,7 +712,7 @@ export default function CreateExam() {
             </div>
 
             <div className="mt-8 pt-6 border-t border-gray-100 flex justify-end">
-              <Button className="px-10 py-6 rounded-2xl text-lg shadow-lg shadow-blue-600/20 group">
+              <Button onClick={handleSaveClick} className="px-10 py-6 rounded-2xl text-lg shadow-lg shadow-blue-600/20 group">
                 <Save className="w-5 h-5 ml-2" />
                 حفظ الاختبار
               </Button>
@@ -647,6 +721,43 @@ export default function CreateExam() {
         )}
 
       </div>
+
+      {/* Save Confirmation Modal */}
+      {showSaveConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl"
+          >
+            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Save className="w-8 h-8" />
+            </div>
+            <h3 className="text-2xl font-black text-gray-900 text-center mb-2">تأكيد حفظ الاختبار</h3>
+            <p className="text-gray-500 text-center mb-8">
+              هل أنت متأكد من حفظ هذا الاختبار بعنوان "{examTitle}" والذي يحتوي على {questions.length} سؤال؟
+            </p>
+            <div className="flex gap-3">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowSaveConfirm(false)}
+                disabled={isSaving}
+                className="flex-1"
+              >
+                إلغاء
+              </Button>
+              <Button 
+                onClick={handleConfirmSave}
+                disabled={isSaving}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {isSaving ? 'جاري الحفظ...' : 'تأكيد الحفظ'}
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
     </MainLayout>
   );
 }
