@@ -15,85 +15,90 @@ export default function Home() {
   const [isExamActive, setIsExamActive] = useState(false);
 
   useEffect(() => {
-    if (studentId) {
-      fetchStudentClassAndExams();
-    }
-  }, [studentId]);
+    let channel: any;
 
-  const fetchStudentClassAndExams = async () => {
-    try {
-      // 1. Get student's class
-      const { data: studentData, error: studentError } = await supabase
-        .from('students')
-        .select('grade, section')
-        .eq('id_number', studentId)
-        .single();
+    const fetchStudentClassAndExams = async () => {
+      try {
+        // 1. Get student's class
+        const { data: studentData, error: studentError } = await supabase
+          .from('students')
+          .select('grade, section')
+          .eq('id_number', studentId)
+          .single();
 
-      if (studentError || !studentData) {
-        console.error('Error fetching student data:', studentError);
-        return;
-      }
-
-      const grade = studentData.grade?.trim() || '';
-      const section = studentData.section?.trim() || '';
-      const studentClassExact = `${grade} ${section}`.trim();
-
-      // 2. Fetch active/upcoming exams for this class
-      const fetchExams = async () => {
-        const { data: sessions, error } = await supabase
-          .from('exam_sessions')
-          .select(`
-            id,
-            start_time,
-            end_time,
-            target_classes,
-            exams ( title, subject )
-          `)
-          .order('start_time', { ascending: true });
-
-        if (error) {
-          console.error('Error fetching sessions:', error);
+        if (studentError || !studentData) {
+          console.error('Error fetching student data:', studentError);
           return;
         }
 
-        if (sessions) {
-          const now = new Date();
-          const validSession = sessions.find(s => {
-            // Check if end time is in the future
-            if (new Date(s.end_time) <= now) return false;
+        const grade = studentData.grade?.trim() || '';
+        const section = studentData.section?.trim() || '';
+        const studentClassExact = `${grade} ${section}`.trim();
+
+        // 2. Fetch active/upcoming exams for this class
+        const fetchExams = async () => {
+          const { data: sessions, error } = await supabase
+            .from('exam_sessions')
+            .select(`
+              id,
+              start_time,
+              end_time,
+              target_classes,
+              exams ( title, subject )
+            `)
+            .order('start_time', { ascending: true });
+
+          if (error) {
+            console.error('Error fetching sessions:', error);
+            return;
+          }
+
+          if (sessions) {
+            const now = new Date();
+            const validSession = sessions.find(s => {
+              // Check if end time is in the future
+              if (new Date(s.end_time) <= now) return false;
+              
+              // Check class match (exact or partial)
+              const targetClasses = Array.isArray(s.target_classes) ? s.target_classes : [];
+              return targetClasses.some(c => 
+                c === studentClassExact || 
+                (grade && section && c.includes(grade) && c.includes(section)) ||
+                // Fallback: if target class is just the grade
+                (grade && c === grade)
+              );
+            });
             
-            // Check class match (exact or partial)
-            const targetClasses = Array.isArray(s.target_classes) ? s.target_classes : [];
-            return targetClasses.some(c => 
-              c === studentClassExact || 
-              (grade && section && c.includes(grade) && c.includes(section)) ||
-              // Fallback: if target class is just the grade
-              (grade && c === grade)
-            );
-          });
-          
-          setUpcomingSession(validSession || null);
-        }
-      };
+            setUpcomingSession(validSession || null);
+          }
+        };
 
-      await fetchExams();
+        await fetchExams();
 
-      // 3. Subscribe to real-time changes
-      const channel = supabase
-        .channel('public:exam_sessions')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'exam_sessions' }, () => {
-          // Refetch exams when any change happens
-          fetchExams();
-        })
-        .subscribe();
+        // 3. Subscribe to real-time changes
+        channel = supabase
+          .channel(`exam_sessions_${studentId}`)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'exam_sessions' }, () => {
+            // Refetch exams when any change happens
+            fetchExams();
+          })
+          .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    } catch (error) {
-      console.error('Error fetching exams:', error);
+      } catch (error) {
+        console.error('Error fetching exams:', error);
+      }
+    };
+
+    if (studentId) {
+      fetchStudentClassAndExams();
     }
-  };
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [studentId]);
 
   // Timer logic
   useEffect(() => {
