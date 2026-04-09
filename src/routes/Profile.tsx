@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/layouts/MainLayout';
-import { UserPlus, LogOut, Users, GraduationCap, School, MapPin, Loader2, Calendar, Mail, Award, Clock, ChevronRight, Sparkles, BookOpenCheck, User } from 'lucide-react';
-import { motion } from 'motion/react';
+import { UserPlus, LogOut, Users, GraduationCap, School, MapPin, Loader2, Calendar, Mail, Award, Clock, ChevronRight, Sparkles, BookOpenCheck, User, ChevronDown, Send } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/Button';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -37,8 +37,19 @@ export default function Profile() {
   const [students, setStudents] = useState<Student[]>([]);
   const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   const mockExams: ExamResult[] = [];
+
+  const formatName = (fullName: string) => {
+    const parts = fullName.trim().split(/\s+/);
+    if (parts.length <= 1) return fullName;
+    return `${parts[0]} ${parts[parts.length - 1]}`;
+  };
+
+  const toggleGroup = (group: string) => {
+    setExpandedGroups(prev => ({ ...prev, [group]: !prev[group] }));
+  };
 
   useEffect(() => {
     if (role === 'teacher') {
@@ -96,6 +107,11 @@ export default function Profile() {
     return acc;
   }, {} as Record<string, Student[]>);
 
+  // Sort students alphabetically within each group
+  Object.keys(groupedStudents).forEach(key => {
+    groupedStudents[key].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+  });
+
   return (
     <MainLayout>
       <div className="flex flex-col gap-6 md:gap-10 h-full pb-12">
@@ -123,6 +139,26 @@ export default function Profile() {
                   </div>
                   <span className="font-bold text-primary-700 text-lg">إضافة طالب</span>
                 </button>
+                
+                <button 
+                  onClick={() => navigate('/create-exam')}
+                  className="flex flex-col items-center justify-center gap-4 p-8 rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/50 hover:bg-blue-50 hover:border-blue-300 transition-all group"
+                >
+                  <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                    <BookOpenCheck className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <span className="font-bold text-blue-700 text-lg">إنشاء اختبار</span>
+                </button>
+
+                <button 
+                  onClick={() => navigate('/publish-exam')}
+                  className="flex flex-col items-center justify-center gap-4 p-8 rounded-2xl border-2 border-dashed border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 hover:border-indigo-300 transition-all group"
+                >
+                  <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                    <Send className="w-6 h-6 text-indigo-600" />
+                  </div>
+                  <span className="font-bold text-indigo-700 text-lg">نشر امتحان متزامن</span>
+                </button>
               </div>
             </div>
 
@@ -145,43 +181,66 @@ export default function Profile() {
                   <p>جاري تحميل قائمة الطلاب...</p>
                 </div>
               ) : Object.keys(groupedStudents).length > 0 ? (
-                <div className="space-y-10">
+                <div className="space-y-4">
                   {(Object.entries(groupedStudents) as [string, Student[]][]).sort().map(([group, groupStudents]) => (
-                    <div key={group} className="space-y-4">
-                      <div className="flex items-center gap-4">
-                        <div className="h-px flex-1 bg-gray-100"></div>
-                        <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-4 py-1 rounded-full border border-gray-100">
-                          صف {group}
-                        </h3>
-                        <div className="h-px flex-1 bg-gray-100"></div>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        {groupStudents.map((student) => (
-                          <div 
-                            key={student.id} 
-                            onClick={() => navigate(`/student/${student.id}`)}
-                            className="p-5 rounded-2xl border border-gray-100 bg-gray-50/50 hover:bg-white hover:shadow-xl hover:border-primary-200 transition-all cursor-pointer group"
-                          >
-                            <div className="flex justify-between items-start mb-4">
-                              <h3 className="font-bold text-gray-900 text-lg group-hover:text-primary-600 transition-colors">{student.name}</h3>
-                              <span className="text-xs font-bold text-primary-600 bg-primary-50 px-2 py-1 rounded-lg">
-                                {student.id_number}
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
-                              <div className="flex items-center gap-2 text-gray-500">
-                                <GraduationCap className="w-4 h-4" />
-                                <span>{student.grade || 'غير محدد'} - {student.section || 'غير محدد'}</span>
-                              </div>
-                              <div className="flex items-center gap-2 text-gray-500">
-                                <School className="w-4 h-4" />
-                                <span className="truncate">{student.school || 'غير محدد'}</span>
-                              </div>
-                            </div>
+                    <div key={group} className="border border-gray-100 rounded-2xl overflow-hidden bg-white shadow-sm">
+                      <button
+                        onClick={() => toggleGroup(group)}
+                        className="w-full flex items-center justify-between p-5 bg-gray-50/50 hover:bg-primary-50/30 transition-colors"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 bg-primary-100 text-primary-600 rounded-xl flex items-center justify-center font-black text-lg">
+                            {groupStudents.length}
                           </div>
-                        ))}
-                      </div>
+                          <span className="font-black text-gray-900 text-lg">صف {group}</span>
+                        </div>
+                        <ChevronDown className={cn("w-5 h-5 text-gray-400 transition-transform duration-300", expandedGroups[group] && "rotate-180")} />
+                      </button>
+                      
+                      <AnimatePresence>
+                        {expandedGroups[group] && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="p-0 border-t border-gray-100">
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-right border-collapse">
+                                  <thead>
+                                    <tr className="bg-gray-50/50 border-b border-gray-100 text-gray-500 text-sm">
+                                      <th className="py-4 px-6 font-bold">اسم الطالب</th>
+                                      <th className="py-4 px-6 font-bold">رقم الهوية</th>
+                                      <th className="py-4 px-6 font-bold">المدرسة</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {groupStudents.map((student) => (
+                                      <tr 
+                                        key={student.id}
+                                        onClick={() => navigate(`/student/${student.id}`)}
+                                        className="border-b border-gray-50 hover:bg-primary-50/50 cursor-pointer transition-colors group last:border-0"
+                                      >
+                                        <td className="py-4 px-6 font-bold text-gray-900 group-hover:text-primary-600 transition-colors">
+                                          {formatName(student.name)}
+                                        </td>
+                                        <td className="py-4 px-6 text-sm text-gray-500 font-mono">
+                                          {student.id_number}
+                                        </td>
+                                        <td className="py-4 px-6 text-sm text-gray-500">
+                                          {student.school || 'غير محدد'}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   ))}
                 </div>

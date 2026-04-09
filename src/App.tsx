@@ -4,6 +4,8 @@ import Home from './routes/Home';
 import Profile from './routes/Profile';
 import AddStudent from './routes/AddStudent';
 import StudentDetails from './routes/StudentDetails';
+import CreateExam from './routes/CreateExam';
+import PublishExam from './routes/PublishExam';
 
 export default function App() {
   return (
@@ -14,6 +16,8 @@ export default function App() {
       <Route path="/profile" element={<Profile />} />
       <Route path="/add-student" element={<AddStudent />} />
       <Route path="/student/:id" element={<StudentDetails />} />
+      <Route path="/create-exam" element={<CreateExam />} />
+      <Route path="/publish-exam" element={<PublishExam />} />
     </Routes>
   );
 }

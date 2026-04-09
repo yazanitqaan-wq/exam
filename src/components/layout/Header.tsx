@@ -125,13 +125,13 @@ export const Header = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMenuOpen(false)}
-              className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[70] md:hidden"
+              className="fixed inset-0 bg-black/40 z-[70] md:hidden"
             />
             <motion.div
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              transition={{ type: 'tween', duration: 0.2, ease: 'easeOut' }}
               className="fixed top-0 right-0 bottom-0 w-[280px] bg-white z-[80] md:hidden shadow-2xl border-l border-gray-100 flex flex-col"
             >
               <div className="p-6 border-b border-gray-50 flex justify-between items-center">
