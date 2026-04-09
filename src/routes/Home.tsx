@@ -29,13 +29,18 @@ export default function Home() {
         .eq('id_number', studentId)
         .single();
 
-      if (studentError || !studentData) return;
+      if (studentError || !studentData) {
+        console.error('Error fetching student data:', studentError);
+        return;
+      }
 
-      const studentClass = `${studentData.grade} ${studentData.section}`;
+      const grade = studentData.grade?.trim() || '';
+      const section = studentData.section?.trim() || '';
+      const studentClassExact = `${grade} ${section}`.trim();
 
       // 2. Fetch active/upcoming exams for this class
       const fetchExams = async () => {
-        const { data: sessions } = await supabase
+        const { data: sessions, error } = await supabase
           .from('exam_sessions')
           .select(`
             id,
@@ -46,14 +51,27 @@ export default function Home() {
           `)
           .order('start_time', { ascending: true });
 
+        if (error) {
+          console.error('Error fetching sessions:', error);
+          return;
+        }
+
         if (sessions) {
-          // Filter sessions where target_classes contains studentClass
-          // and end_time is in the future
           const now = new Date();
-          const validSession = sessions.find(s => 
-            s.target_classes.includes(studentClass) && 
-            new Date(s.end_time) > now
-          );
+          const validSession = sessions.find(s => {
+            // Check if end time is in the future
+            if (new Date(s.end_time) <= now) return false;
+            
+            // Check class match (exact or partial)
+            const targetClasses = Array.isArray(s.target_classes) ? s.target_classes : [];
+            return targetClasses.some(c => 
+              c === studentClassExact || 
+              (grade && section && c.includes(grade) && c.includes(section)) ||
+              // Fallback: if target class is just the grade
+              (grade && c === grade)
+            );
+          });
+          
           setUpcomingSession(validSession || null);
         }
       };
