@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MainLayout } from '@/layouts/MainLayout';
 import { motion } from 'motion/react';
-import { Clock, Calendar, ArrowLeft } from 'lucide-react';
+import { Clock, Calendar, ArrowLeft, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
@@ -14,32 +14,43 @@ export default function Home() {
   const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
   const [isExamActive, setIsExamActive] = useState(false);
 
+  const [isLoading, setIsLoading] = useState(true);
+  const [debugInfo, setDebugInfo] = useState<string>('');
+
   useEffect(() => {
-    if (!studentId) return;
+    if (!studentId) {
+      setIsLoading(false);
+      return;
+    }
 
     let isMounted = true;
-    // إنشاء القناة فوراً لضمان إمكانية تنظيفها في دالة cleanup
     const channelId = `exam_sessions_${studentId}_${Date.now()}`;
     const channel = supabase.channel(channelId);
 
     const setupRealtime = async () => {
+      setIsLoading(true);
       try {
         // 1. جلب بيانات الصف الخاص بالطالب
         const { data: studentData, error: studentError } = await supabase
           .from('students')
-          .select('grade, section')
+          .select('grade, section, name')
           .eq('id_number', studentId)
           .single();
 
         if (!isMounted) return;
+        
         if (studentError || !studentData) {
           console.error('Error fetching student data:', studentError);
+          setDebugInfo(`خطأ في جلب بيانات الطالب: ${studentError?.message || 'لا توجد بيانات'}`);
+          setIsLoading(false);
           return;
         }
 
         const grade = studentData.grade?.trim() || '';
         const section = studentData.section?.trim() || '';
         const studentClassExact = `${grade} ${section}`.trim();
+        
+        console.log('Student Class:', studentClassExact);
 
         // 2. دالة جلب الامتحانات المتاحة
         const fetchExams = async () => {
@@ -50,33 +61,57 @@ export default function Home() {
               start_time,
               end_time,
               target_classes,
-              exams ( title, subject )
+              status,
+              exams ( id, title, subject )
             `)
             .order('start_time', { ascending: true });
 
           if (!isMounted) return;
+          
           if (error) {
             console.error('Error fetching sessions:', error);
+            setDebugInfo(`خطأ في جلب الجلسات: ${error.message}`);
             return;
           }
+
+          console.log('All Sessions found:', sessions?.length);
 
           if (sessions) {
             const now = new Date();
             const validSession = sessions.find(s => {
-              // التحقق من أن وقت الانتهاء في المستقبل
-              if (new Date(s.end_time) <= now) return false;
+              // التحقق من أن وقت الانتهاء في المستقبل (أو لم ينتهِ بعد بـ 10 دقائق)
+              const endTime = new Date(s.end_time);
+              if (endTime <= now) return false;
               
-              // التحقق من مطابقة الصف (تطابق تام أو جزئي)
+              // التحقق من مطابقة الصف
               const targetClasses = Array.isArray(s.target_classes) ? s.target_classes : [];
-              return targetClasses.some(c => 
-                c === studentClassExact || 
-                (grade && section && c.includes(grade) && c.includes(section)) ||
-                (grade && c === grade)
-              );
+              const isClassMatch = targetClasses.some(c => {
+                const cleanC = c.trim().replace(/\s+/g, ' ');
+                const cleanStudentClass = studentClassExact.trim().replace(/\s+/g, ' ');
+                
+                // تطابق تام
+                if (cleanC === cleanStudentClass) return true;
+                
+                // تطابق بدون مسافات (للحالات الصعبة مثل "الحادي عشر ج" و "الحادي عشرج")
+                if (cleanC.replace(/\s+/g, '') === cleanStudentClass.replace(/\s+/g, '')) return true;
+
+                return (grade && section && cleanC.includes(grade) && cleanC.includes(section)) ||
+                       (grade && cleanC === grade);
+              });
+
+              return isClassMatch;
             });
             
+            console.log('Valid Session for student:', validSession?.id);
             setUpcomingSession(validSession || null);
+            
+            if (!validSession && sessions.length > 0) {
+              setDebugInfo(`تم العثور على ${sessions.length} جلسات، ولكن لا توجد جلسة تطابق صفك (${studentClassExact})`);
+            } else if (sessions.length === 0) {
+              setDebugInfo('لا توجد أي جلسات امتحانات مضافة في قاعدة البيانات حالياً.');
+            }
           }
+          setIsLoading(false);
         };
 
         await fetchExams();
@@ -86,18 +121,15 @@ export default function Home() {
         // 3. الاشتراك في التحديثات المباشرة
         channel
           .on('postgres_changes', { event: '*', schema: 'public', table: 'exam_sessions' }, () => {
-            // إعادة جلب الامتحانات عند حدوث أي تغيير
             fetchExams();
           })
-          .subscribe((status) => {
-            if (status === 'SUBSCRIBED') {
-              console.log('Successfully subscribed to exam_sessions');
-            }
-          });
+          .subscribe();
 
-      } catch (error) {
+      } catch (error: any) {
         if (isMounted) {
           console.error('Error in setupRealtime:', error);
+          setDebugInfo(`خطأ غير متوقع: ${error.message}`);
+          setIsLoading(false);
         }
       }
     };
@@ -174,7 +206,12 @@ export default function Home() {
               
               <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
                 <div className="flex-1 text-center lg:text-right w-full">
-                  {!upcomingSession ? (
+                  {isLoading ? (
+                    <div className="flex flex-col items-center lg:items-start gap-4">
+                      <Loader2 className="w-10 h-10 text-white animate-spin" />
+                      <p className="text-blue-100 font-bold">جاري جلب بيانات الاختبارات...</p>
+                    </div>
+                  ) : !upcomingSession ? (
                     <>
                       <div className="inline-block bg-white/20 text-white font-bold px-4 py-1.5 rounded-full text-sm mb-4 border border-white/20">
                         لا يوجد اختبارات
@@ -182,7 +219,7 @@ export default function Home() {
                       <h3 className="text-2xl sm:text-3xl font-black text-white mb-2">لا يوجد اختبارات قادمة حالياً</h3>
                       <p className="text-blue-100 font-medium flex items-center justify-center lg:justify-start gap-2">
                         <Calendar className="w-4 h-4" />
-                        سيظهر موعد الاختبار هنا عند إضافته
+                        {debugInfo || 'سيظهر موعد الاختبار هنا عند إضافته'}
                       </p>
                     </>
                   ) : (
@@ -193,10 +230,12 @@ export default function Home() {
                       )}>
                         {isExamActive ? 'الاختبار متاح الآن' : 'اختبار قادم'}
                       </div>
-                      <h3 className="text-2xl sm:text-3xl font-black text-white mb-2">{upcomingSession.exams?.title}</h3>
+                      <h3 className="text-2xl sm:text-3xl font-black text-white mb-2">
+                        {Array.isArray(upcomingSession.exams) ? upcomingSession.exams[0]?.title : upcomingSession.exams?.title}
+                      </h3>
                       <p className="text-blue-100 font-medium flex items-center justify-center lg:justify-start gap-2 mb-6">
                         <Calendar className="w-4 h-4" />
-                        {upcomingSession.exams?.subject} • {new Date(upcomingSession.start_time).toLocaleString('ar-EG')}
+                        {Array.isArray(upcomingSession.exams) ? upcomingSession.exams[0]?.subject : upcomingSession.exams?.subject} • {new Date(upcomingSession.start_time).toLocaleString('ar-EG')}
                       </p>
                       
                       {isExamActive && (

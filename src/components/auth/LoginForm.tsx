@@ -59,6 +59,8 @@ export const LoginForm = () => {
             localStorage.setItem('rememberedId', cleanIdentifier);
           }
           localStorage.setItem('userRole', 'teacher');
+          localStorage.removeItem('studentName');
+          localStorage.removeItem('studentId');
           
           setIsSuccessLoading(true);
           setTimeout(() => {
@@ -77,6 +79,8 @@ export const LoginForm = () => {
             localStorage.removeItem('rememberedId');
           }
           localStorage.setItem('userRole', 'teacher');
+          localStorage.removeItem('studentName');
+          localStorage.removeItem('studentId');
           
           setIsSuccessLoading(true);
           setTimeout(() => {
@@ -109,6 +113,8 @@ export const LoginForm = () => {
           localStorage.setItem('userRole', 'student');
           localStorage.setItem('studentName', data.name);
           localStorage.setItem('studentId', data.id_number);
+          // Clear any teacher remnants
+          localStorage.removeItem('teacherEmail');
           
           setIsSuccessLoading(true);
           setTimeout(() => {
