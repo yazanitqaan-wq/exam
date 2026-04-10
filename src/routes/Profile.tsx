@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/layouts/MainLayout';
-import { UserPlus, LogOut, Users, GraduationCap, School, MapPin, Loader2, Calendar, Mail, Award, Clock, ChevronRight, Sparkles, BookOpenCheck, User, ChevronDown, Send, Trash2 } from 'lucide-react';
+import { UserPlus, LogOut, Users, GraduationCap, School, MapPin, Loader2, Calendar, Mail, Award, Clock, ChevronRight, Sparkles, BookOpenCheck, User, ChevronDown, Send, Trash2, MessageSquare, Tag } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -31,6 +31,15 @@ interface ExamResult {
   color: string;
 }
 
+interface StudentComment {
+  id: string;
+  teacher_name: string;
+  subject: string;
+  comment_type: string;
+  content: string;
+  created_at: string;
+}
+
 export default function Profile() {
   const navigate = useNavigate();
   const role = localStorage.getItem('userRole') || 'student';
@@ -39,6 +48,7 @@ export default function Profile() {
   const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [studentExams, setStudentExams] = useState<ExamResult[]>([]);
+  const [studentComments, setStudentComments] = useState<StudentComment[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
@@ -154,6 +164,20 @@ export default function Profile() {
       }
       
       setCurrentStudent(data);
+
+      // Fetch comments for this student
+      if (data) {
+        const { data: commentsData, error: commentsError } = await supabase
+          .from('student_comments')
+          .select('*')
+          .eq('student_id', data.id)
+          .order('created_at', { ascending: false });
+          
+        if (!commentsError && commentsData) {
+          setStudentComments(commentsData);
+        }
+      }
+
     } catch (error) {
       console.error("Error fetching student details:", error);
     } finally {
@@ -270,6 +294,15 @@ export default function Profile() {
                     <GraduationCap className="w-5 h-5 text-emerald-600" />
                   </div>
                   <span className="font-black text-emerald-700 text-xs">علامات الطلاب</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/comments')}
+                  className="flex flex-col items-center justify-center gap-3 p-4 sm:p-6 rounded-xl border-2 border-dashed border-amber-200 bg-amber-50/50 hover:bg-amber-50 hover:border-amber-300 transition-all group"
+                >
+                  <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                    <MessageSquare className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <span className="font-black text-amber-700 text-xs">التعليقات</span>
                 </button>
               </div>
             </div>
@@ -533,6 +566,69 @@ export default function Profile() {
                     <Button variant="ghost" className="w-full mt-6 py-3 rounded-xl border-2 border-dashed border-gray-100 text-gray-400 hover:text-primary-600 hover:border-primary-200 hover:bg-primary-50 text-xs font-bold transition-all">
                       عرض جميع النتائج
                     </Button>
+                  </motion.div>
+
+                  {/* Comments Section */}
+                  <motion.div 
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="bg-white p-5 sm:p-8 rounded-2xl sm:rounded-[2rem] shadow-sm border border-gray-100"
+                  >
+                    <div className="flex justify-between items-center mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center shadow-sm">
+                          <MessageSquare className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h2 className="text-sm font-black text-gray-900">تعليقات المعلمين</h2>
+                          <p className="text-gray-400 text-[10px] font-bold">ملاحظات وتقييمات الهيئة التدريسية</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      {studentComments.length > 0 ? (
+                        studentComments.map((comment) => (
+                          <div key={comment.id} className="p-4 rounded-2xl border border-gray-100 bg-gray-50/50">
+                            <div className="flex justify-between items-start mb-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100">
+                                  <User className="w-4 h-4 text-gray-400" />
+                                </div>
+                                <div>
+                                  <h4 className="text-xs font-bold text-gray-900">{comment.teacher_name}</h4>
+                                  <p className="text-[10px] text-gray-500">{comment.subject}</p>
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-end gap-1">
+                                <span className={cn(
+                                  "text-[10px] font-bold px-2 py-1 rounded-md",
+                                  comment.comment_type === 'إيجابي' ? 'bg-green-100 text-green-700' :
+                                  comment.comment_type === 'سلوكي' ? 'bg-orange-100 text-orange-700' :
+                                  comment.comment_type === 'أكاديمي' ? 'bg-blue-100 text-blue-700' :
+                                  'bg-gray-200 text-gray-700'
+                                )}>
+                                  {comment.comment_type}
+                                </span>
+                                <span className="text-[9px] text-gray-400 flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  {new Date(comment.created_at).toLocaleDateString('ar-EG')}
+                                </span>
+                              </div>
+                            </div>
+                            <p className="text-xs text-gray-700 leading-relaxed bg-white p-3 rounded-xl border border-gray-100">
+                              {comment.content}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-8 text-gray-400 border-2 border-dashed border-gray-100 rounded-xl">
+                          <MessageSquare className="w-8 h-8 mb-2 opacity-20" />
+                          <p className="text-xs font-bold">لا توجد تعليقات حالياً</p>
+                        </div>
+                      )}
+                    </div>
                   </motion.div>
                 </div>
               </div>

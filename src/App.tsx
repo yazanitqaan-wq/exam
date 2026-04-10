@@ -8,6 +8,7 @@ import CreateExam from './routes/CreateExam';
 import PublishExam from './routes/PublishExam';
 import TakeExam from './routes/TakeExam';
 import TeacherGrades from './routes/TeacherGrades';
+import TeacherComments from './routes/TeacherComments';
 
 const router = createBrowserRouter([
   {
@@ -49,6 +50,10 @@ const router = createBrowserRouter([
   {
     path: "/grades",
     element: <TeacherGrades />,
+  },
+  {
+    path: "/comments",
+    element: <TeacherComments />,
   },
 ]);
 

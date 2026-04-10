@@ -15,7 +15,8 @@ import {
   Clock,
   IdCard,
   Award,
-  BookOpenCheck
+  BookOpenCheck,
+  MessageSquare
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -40,14 +41,32 @@ export default function StudentDetails() {
   const navigate = useNavigate();
   const [student, setStudent] = useState<Student | null>(null);
   const [studentExams, setStudentExams] = useState<any[]>([]);
+  const [studentComments, setStudentComments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (id) {
       fetchStudentDetails();
       fetchStudentExams();
+      fetchStudentComments();
     }
   }, [id]);
+
+  const fetchStudentComments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('student_comments')
+        .select('*')
+        .eq('student_id', id)
+        .order('created_at', { ascending: false });
+        
+      if (!error && data) {
+        setStudentComments(data);
+      }
+    } catch (error) {
+      console.error("Error fetching student comments:", error);
+    }
+  };
 
   const fetchStudentExams = async () => {
     try {
@@ -272,6 +291,57 @@ export default function StudentDetails() {
                   <div className="flex flex-col items-center justify-center py-8 text-gray-400 border-2 border-dashed border-gray-100 rounded-xl">
                     <BookOpenCheck className="w-8 h-8 mb-2 opacity-20" />
                     <p className="text-xs font-bold">لا توجد امتحانات مسجلة حالياً</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Comments Section */}
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-amber-600" />
+                تعليقات المعلمين
+              </h3>
+              
+              <div className="space-y-4">
+                {studentComments.length > 0 ? (
+                  studentComments.map((comment) => (
+                    <div key={comment.id} className="p-4 rounded-2xl border border-gray-100 bg-gray-50/50">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100">
+                            <User className="w-4 h-4 text-gray-400" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-gray-900">{comment.teacher_name}</h4>
+                            <p className="text-[10px] text-gray-500">{comment.subject}</p>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={cn(
+                            "text-[10px] font-bold px-2 py-1 rounded-md",
+                            comment.comment_type === 'إيجابي' ? 'bg-green-100 text-green-700' :
+                            comment.comment_type === 'سلوكي' ? 'bg-orange-100 text-orange-700' :
+                            comment.comment_type === 'أكاديمي' ? 'bg-blue-100 text-blue-700' :
+                            'bg-gray-200 text-gray-700'
+                          )}>
+                            {comment.comment_type}
+                          </span>
+                          <span className="text-[9px] text-gray-400 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {new Date(comment.created_at).toLocaleDateString('ar-EG')}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-700 leading-relaxed bg-white p-3 rounded-xl border border-gray-100">
+                        {comment.content}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 text-gray-400 border-2 border-dashed border-gray-100 rounded-xl">
+                    <MessageSquare className="w-8 h-8 mb-2 opacity-20" />
+                    <p className="text-xs font-bold">لا توجد تعليقات حالياً</p>
                   </div>
                 )}
               </div>
