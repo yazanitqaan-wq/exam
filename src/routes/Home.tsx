@@ -2,20 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/layouts/MainLayout';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, Calendar, ArrowLeft, Loader2, BookOpen } from 'lucide-react';
+import { Clock, Calendar, ArrowLeft, Loader2, BookOpen, Info, CheckCircle2, AlertCircle, Layout, List, UserCheck, Smartphone, ShieldAlert } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
 
 export default function Home() {
   const navigate = useNavigate();
-  const userName = localStorage.getItem('studentName') || 'المستخدم';
+  const userRole = localStorage.getItem('userRole') || 'student';
+  const userName = localStorage.getItem('studentName') || (userRole === 'teacher' ? 'المعلم' : 'المستخدم');
   const studentId = localStorage.getItem('studentId');
   
-  const [upcomingSession, setUpcomingSession] = useState<any>(null);
-  const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
-  const [isExamActive, setIsExamActive] = useState(false);
+  const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]);
+  const [teacherSessions, setTeacherSessions] = useState<any[]>([]);
+  const [timeLefts, setTimeLefts] = useState<Record<string, { hours: number, minutes: number, seconds: number }>>({});
+  const [activeExamId, setActiveExamId] = useState<string | null>(null);
   const [showEnterConfirm, setShowEnterConfirm] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<any>(null);
   const [isEntering, setIsEntering] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -47,6 +50,36 @@ export default function Home() {
     const setupRealtime = async () => {
       setIsLoading(true);
       try {
+        if (userRole === 'teacher') {
+          const fetchTeacherSessions = async () => {
+            const { data, error } = await supabase
+              .from('exam_sessions')
+              .select('*, exams(title, subject)')
+              .order('start_time', { ascending: false });
+            
+            if (error) {
+              console.error('Error fetching teacher sessions:', error);
+              return;
+            }
+            setTeacherSessions(data || []);
+            setIsLoading(false);
+          };
+          await fetchTeacherSessions();
+          
+          channel
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'exam_sessions' }, () => {
+              fetchTeacherSessions();
+            })
+            .subscribe();
+          return;
+        }
+
+        // Student Logic
+        if (!studentId) {
+          setIsLoading(false);
+          return;
+        }
+
         // 1. جلب بيانات الصف الخاص بالطالب
         const { data: studentData, error: studentError } = await supabase
           .from('students')
@@ -97,20 +130,15 @@ export default function Home() {
 
           if (sessions) {
             const now = new Date();
-            const validSession = sessions.find(s => {
-              // التحقق من أن وقت الانتهاء في المستقبل
+            const validSessions = sessions.filter(s => {
               const endTime = new Date(s.end_time);
               if (endTime <= now) return false;
               
-              // التحقق من مطابقة الصف باستخدام التطابق الذكي
               const targetClasses = Array.isArray(s.target_classes) ? s.target_classes : [];
-              const isClassMatch = targetClasses.some(c => {
+              return targetClasses.some(c => {
                 const normalizedTarget = normalizeArabic(c);
-                
-                // 1. تطابق تام بعد التوحيد
                 if (normalizedTarget === normalizedStudentClass) return true;
                 
-                // 2. إذا كان الصف المختار يحتوي على الصف والشعبة الخاصين بالطالب
                 const normalizedGrade = normalizeArabic(grade);
                 const normalizedSection = normalizeArabic(section);
                 
@@ -119,20 +147,14 @@ export default function Home() {
                     normalizedTarget.includes(normalizedSection)) {
                   return true;
                 }
-
-                // 3. تطابق مع الصف فقط (إذا كان الامتحان لكل الشعب)
                 if (normalizedGrade && normalizedTarget === normalizedGrade) return true;
-
                 return false;
               });
-
-              return isClassMatch;
-            });
+            }).slice(0, 6);
             
-            console.log('Valid Session for student:', validSession?.id);
-            setUpcomingSession(validSession || null);
+            setUpcomingSessions(validSessions);
             
-            if (!validSession && sessions.length > 0) {
+            if (validSessions.length === 0 && sessions.length > 0) {
               setDebugInfo(`تم العثور على ${sessions.length} جلسات، ولكن لا توجد جلسة تطابق صفك (${studentClassExact}) بعد توحيد النصوص.`);
             } else if (sessions.length === 0) {
               setDebugInfo('لا توجد أي جلسات امتحانات مضافة في قاعدة البيانات حالياً.');
@@ -169,167 +191,333 @@ export default function Home() {
     };
   }, [studentId]);
 
-  // Timer logic
+  // Timer logic for multiple exams
   useEffect(() => {
-    if (!upcomingSession) return;
+    if (upcomingSessions.length === 0) return;
 
     const timer = setInterval(() => {
       const now = new Date().getTime();
-      const startTime = new Date(upcomingSession.start_time).getTime();
-      const endTime = new Date(upcomingSession.end_time).getTime();
+      const newTimeLefts: Record<string, any> = {};
+      let foundActive = null;
 
-      if (now >= startTime && now <= endTime) {
-        // Exam is active, countdown to end time
-        setIsExamActive(true);
-        const distance = endTime - now;
-        setTimeLeft({
-          hours: Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
-          minutes: Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)),
-          seconds: Math.floor((distance % (1000 * 60)) / 1000)
-        });
-      } else if (now < startTime) {
-        // Exam is upcoming, countdown to start time
-        setIsExamActive(false);
-        const distance = startTime - now;
-        setTimeLeft({
-          hours: Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
-          minutes: Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)),
-          seconds: Math.floor((distance % (1000 * 60)) / 1000)
-        });
-      } else {
-        // Exam has ended
-        setUpcomingSession(null);
-      }
+      upcomingSessions.forEach(session => {
+        const startTime = new Date(session.start_time).getTime();
+        const endTime = new Date(session.end_time).getTime();
+
+        if (now >= startTime && now <= endTime) {
+          foundActive = session.id;
+          const distance = endTime - now;
+          newTimeLefts[session.id] = {
+            hours: Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+            minutes: Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)),
+            seconds: Math.floor((distance % (1000 * 60)) / 1000)
+          };
+        } else if (now < startTime) {
+          const distance = startTime - now;
+          newTimeLefts[session.id] = {
+            hours: Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+            minutes: Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)),
+            seconds: Math.floor((distance % (1000 * 60)) / 1000)
+          };
+        }
+      });
+
+      setTimeLefts(newTimeLefts);
+      setActiveExamId(foundActive);
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [upcomingSession]);
+  }, [upcomingSessions]);
 
   const handleEnterExam = () => {
+    if (!selectedSession) return;
     setIsEntering(true);
     setTimeout(() => {
-      navigate(`/take-exam/${upcomingSession.id}`);
+      navigate(`/take-exam/${selectedSession.id}`);
     }, 1500);
   };
 
-  return (
-    <MainLayout>
-      <div className="space-y-8 pb-12">
-        {/* Upcoming Exam Section (Moved to top, replacing Hero) */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-primary-600 to-blue-800 rounded-[2.5rem] p-6 sm:p-10 text-white shadow-2xl shadow-blue-900/20"
-        >
-          {/* Decorative Shapes */}
-          <div className="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 bg-blue-400/20 rounded-full blur-3xl"></div>
-          
-          <div className="relative z-10">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="w-12 h-12 bg-white/20 backdrop-blur-md text-white rounded-2xl flex items-center justify-center border border-white/20">
-                <Clock className="w-6 h-6" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-black text-white">الاختبار القادم</h2>
-                <p className="text-blue-100 font-medium">مرحباً بك، {userName}</p>
-              </div>
+  const renderTeacherView = () => (
+    <div className="space-y-4 sm:space-y-8">
+      {/* Header / Welcome */}
+      <div className="flex items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-primary-50 text-primary-600 rounded-xl flex items-center justify-center">
+            <UserCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[10px] text-gray-400 font-bold uppercase">مرحباً بك</p>
+            <h2 className="text-sm font-black text-gray-900">{userName}</h2>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8">
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-xs font-black text-gray-900 flex items-center gap-1.5">
+              <List className="w-4 h-4 text-primary-600" />
+              جلسات الاختبارات المنشورة
+            </h3>
+            <Button onClick={() => navigate('/publish-exam')} size="sm" className="rounded-xl text-[10px] h-8 px-3">
+              نشر اختبار جديد
+            </Button>
+          </div>
+
+          {isLoading ? (
+            <div className="bg-white p-8 rounded-2xl border border-gray-100 flex flex-col items-center justify-center text-gray-400">
+              <Loader2 className="w-6 h-6 animate-spin mb-2" />
+              <p className="font-bold text-xs">جاري تحميل الجلسات...</p>
             </div>
-
-            <div className="bg-white/10 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-white/20 shadow-xl relative overflow-hidden">
-              
-              <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
-                <div className="flex-1 text-center lg:text-right w-full">
-                  {isLoading ? (
-                    <div className="flex flex-col items-center lg:items-start gap-4">
-                      <Loader2 className="w-10 h-10 text-white animate-spin" />
-                      <p className="text-blue-100 font-bold">جاري جلب بيانات الاختبارات...</p>
-                    </div>
-                  ) : !upcomingSession ? (
-                    <>
-                      <div className="inline-block bg-white/20 text-white font-bold px-4 py-1.5 rounded-full text-sm mb-4 border border-white/20">
-                        لا يوجد اختبارات
-                      </div>
-                      <h3 className="text-2xl sm:text-3xl font-black text-white mb-2">لا يوجد اختبارات قادمة حالياً</h3>
-                      <p className="text-blue-100 font-medium flex items-center justify-center lg:justify-start gap-2">
-                        <Calendar className="w-4 h-4" />
-                        {debugInfo || 'سيظهر موعد الاختبار هنا عند إضافته'}
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <div className={cn(
-                        "inline-block text-white font-bold px-4 py-1.5 rounded-full text-sm mb-4 border",
-                        isExamActive ? "bg-green-500/20 border-green-500/50 text-green-100" : "bg-white/20 border-white/20"
-                      )}>
-                        {isExamActive ? 'الاختبار متاح الآن' : 'اختبار قادم'}
-                      </div>
-                      <h3 className="text-2xl sm:text-3xl font-black text-white mb-2">
-                        {Array.isArray(upcomingSession.exams) ? upcomingSession.exams[0]?.title : upcomingSession.exams?.title}
-                      </h3>
-                      <p className="text-blue-100 font-medium flex items-center justify-center lg:justify-start gap-2 mb-6">
-                        <Calendar className="w-4 h-4" />
-                        {Array.isArray(upcomingSession.exams) ? upcomingSession.exams[0]?.subject : upcomingSession.exams?.subject} • {new Date(upcomingSession.start_time).toLocaleString('ar-EG')}
-                      </p>
-                      
-                      {isExamActive && (
-                        <Button 
-                          onClick={() => setShowEnterConfirm(true)}
-                          className="bg-white text-blue-600 hover:bg-blue-50 font-bold px-8 py-6 rounded-2xl text-lg w-full sm:w-auto"
-                        >
-                          دخول الاختبار الآن
-                          <ArrowLeft className="w-5 h-5 mr-2" />
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {/* Countdown Timer */}
-                <div className="flex flex-col items-center gap-2">
-                  <div className="text-blue-100 font-bold text-sm mb-2">
-                    {!upcomingSession ? 'الوقت المتبقي' : isExamActive ? 'ينتهي الاختبار بعد:' : 'يبدأ الاختبار بعد:'}
-                  </div>
-                  <div className="flex items-center gap-3 sm:gap-4 bg-black/20 p-4 sm:p-6 rounded-3xl border border-white/10 w-full lg:w-auto justify-center flex-row-reverse">
-                    <div className="text-center">
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/10 rounded-2xl shadow-sm border border-white/20 flex items-center justify-center mb-2 backdrop-blur-sm">
-                        <span className="text-2xl sm:text-3xl font-black text-white">
-                          {upcomingSession ? timeLeft.seconds.toString().padStart(2, '0') : '00'}
-                        </span>
-                      </div>
-                      <span className="text-xs font-bold text-blue-200 uppercase tracking-widest">ثانية</span>
-                    </div>
-                    <span className="text-2xl font-black text-white/30 -mt-6">:</span>
-                    <div className="text-center">
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/10 rounded-2xl shadow-sm border border-white/20 flex items-center justify-center mb-2 backdrop-blur-sm">
-                        <span className="text-2xl sm:text-3xl font-black text-white">
-                          {upcomingSession ? timeLeft.minutes.toString().padStart(2, '0') : '00'}
-                        </span>
-                      </div>
-                      <span className="text-xs font-bold text-blue-200 uppercase tracking-widest">دقيقة</span>
-                    </div>
-                    <span className="text-2xl font-black text-white/30 -mt-6">:</span>
-                    <div className="text-center">
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/10 rounded-2xl shadow-sm border border-white/20 flex items-center justify-center mb-2 backdrop-blur-sm">
-                        <span className="text-2xl sm:text-3xl font-black text-white">
-                          {upcomingSession ? timeLeft.hours.toString().padStart(2, '0') : '00'}
-                        </span>
-                      </div>
-                      <span className="text-xs font-bold text-blue-200 uppercase tracking-widest">ساعة</span>
-                    </div>
-                  </div>
-                </div>
-
+          ) : teacherSessions.length === 0 ? (
+            <div className="bg-white p-8 rounded-2xl border border-gray-100 flex flex-col items-center justify-center text-center">
+              <div className="w-12 h-12 bg-gray-50 text-gray-300 rounded-full flex items-center justify-center mb-3">
+                <AlertCircle className="w-6 h-6" />
               </div>
+              <h4 className="text-sm font-black text-gray-900 mb-1">لا يوجد اختبارات</h4>
+              <p className="text-gray-500 text-[10px] max-w-xs">لم تقم بنشر أي جلسات اختبارات متزامنة حتى الآن.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3">
+              {teacherSessions.map((session) => (
+                <div
+                  key={session.id}
+                  className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary-50 text-primary-600 rounded-xl flex items-center justify-center shrink-0">
+                      <BookOpen className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-gray-900 text-xs">{session.exams?.title}</h4>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {session.target_classes.map((c: string, i: number) => (
+                          <span key={i} className="bg-gray-50 text-gray-500 text-[9px] font-bold px-1.5 py-0.5 rounded-md border border-gray-100">
+                            {c}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 border-gray-50 pt-3 sm:pt-0">
+                    <div className="space-y-0.5">
+                      <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">التوقيت</p>
+                      <div className="flex items-center gap-1 text-gray-700 font-bold text-[10px]">
+                        <Clock className="w-3 h-3 text-primary-500" />
+                        <span>{new Date(session.start_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                    </div>
+                    <div className={cn(
+                      "px-2 py-1 rounded-lg text-[10px] font-black border",
+                      session.status === 'active' ? "bg-green-50 text-green-600 border-green-100" : "bg-blue-50 text-blue-600 border-blue-100"
+                    )}>
+                      {session.status === 'active' ? 'مباشر الآن' : 'مجدول'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <h3 className="text-xs font-black text-gray-900 flex items-center gap-1.5 px-1">
+            <Info className="w-4 h-4 text-primary-600" />
+            إحصائيات سريعة
+          </h3>
+          <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
+            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+              <p className="text-gray-400 text-[10px] font-bold mb-1">إجمالي الجلسات</p>
+              <p className="text-lg font-black text-primary-600">{teacherSessions.length}</p>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+              <p className="text-gray-400 text-[10px] font-bold mb-1">الجلسات النشطة</p>
+              <p className="text-lg font-black text-green-600">
+                {teacherSessions.filter(s => s.status === 'active').length}
+              </p>
             </div>
           </div>
-        </motion.div>
+        </div>
+      </div>
+    </div>
+  );
 
+  const renderStudentView = () => (
+    <div className="space-y-4 sm:space-y-8">
+      {/* Header / Welcome */}
+      <div className="flex items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-primary-50 text-primary-600 rounded-xl flex items-center justify-center">
+            <UserCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[10px] text-gray-400 font-bold uppercase">مرحباً بك</p>
+            <h2 className="text-sm font-black text-gray-900">{userName}</h2>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Upcoming Exam Card */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-800 rounded-3xl p-5 text-white shadow-lg shadow-blue-900/20">
+        <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
+        
+        <div className="relative z-10">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xs font-black flex items-center gap-1.5">
+              <Calendar className="w-4 h-4" />
+              الاختبار القادم
+            </h3>
+            {upcomingSessions.length > 0 && (
+              <span className={cn(
+                "text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter",
+                activeExamId ? "bg-green-500 text-white" : "bg-white/20 text-white"
+              )}>
+                {activeExamId ? 'متاح الآن' : 'مجدول'}
+              </span>
+            )}
+          </div>
+
+          {isLoading ? (
+            <div className="py-8 flex flex-col items-center gap-3">
+              <Loader2 className="w-6 h-6 animate-spin text-white" />
+              <p className="font-bold text-xs text-blue-100">جاري جلب البيانات...</p>
+            </div>
+          ) : upcomingSessions.length === 0 ? (
+            <div className="py-8 text-center space-y-3">
+              <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mx-auto">
+                <AlertCircle className="w-6 h-6 text-blue-200" />
+              </div>
+              <h4 className="text-sm font-black">لا يوجد اختبارات حالياً</h4>
+              <p className="text-blue-200 text-[10px] font-medium">{debugInfo || 'سيتم إشعارك فور توفر اختبار جديد'}</p>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <div>
+                <h4 className="text-lg font-black mb-1">{upcomingSessions[0].exams?.title}</h4>
+                <p className="text-blue-200 text-xs font-bold flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5" />
+                  {upcomingSessions[0].exams?.subject}
+                </p>
+              </div>
+
+              {/* Countdown */}
+              <div className="grid grid-cols-3 gap-2 flex-row-reverse">
+                {[
+                  { label: 'ثانية', val: timeLefts[upcomingSessions[0].id]?.seconds || 0 },
+                  { label: 'دقيقة', val: timeLefts[upcomingSessions[0].id]?.minutes || 0 },
+                  { label: 'ساعة', val: timeLefts[upcomingSessions[0].id]?.hours || 0 },
+                ].map((t, i) => (
+                  <div key={i} className="bg-black/20 rounded-xl p-2 border border-white/10 text-center">
+                    <div className="text-lg font-black mb-0.5">{t.val.toString().padStart(2, '0')}</div>
+                    <div className="text-[9px] font-bold text-blue-300 uppercase">{t.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {activeExamId === upcomingSessions[0].id ? (
+                <Button 
+                  onClick={() => {
+                    setSelectedSession(upcomingSessions[0]);
+                    setShowEnterConfirm(true);
+                  }}
+                  className="w-full py-4 bg-white text-blue-700 hover:bg-blue-50 rounded-xl text-xs font-black shadow-md"
+                >
+                  دخول الاختبار الآن
+                  <ArrowLeft className="w-4 h-4 mr-1.5" />
+                </Button>
+              ) : (
+                <div className="bg-white/10 border border-white/20 p-3 rounded-xl text-center">
+                  <p className="text-[10px] font-bold text-blue-100">
+                    يبدأ في: {new Date(upcomingSessions[0].start_time).toLocaleString('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Other Exams & Instructions (Grid on Desktop, Stack on Mobile) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Other Exams */}
+        <div className="space-y-3">
+          <h3 className="text-xs font-black text-gray-900 flex items-center gap-1.5 px-1">
+            <Layout className="w-4 h-4 text-primary-600" />
+            جدول الاختبارات القادمة
+          </h3>
+          
+          {upcomingSessions.length > 1 ? (
+            <div className="grid grid-cols-1 gap-3">
+              {upcomingSessions.slice(1).map((session) => (
+                <div
+                  key={session.id}
+                  className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary-50 text-primary-600 rounded-xl flex items-center justify-center shrink-0">
+                      <BookOpen className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-gray-900 mb-0.5">{session.exams?.title}</h4>
+                      <p className="text-gray-500 text-[10px] font-bold">{session.exams?.subject}</p>
+                    </div>
+                  </div>
+                  <div className="text-left">
+                    <span className="block text-[9px] font-black text-gray-400 uppercase mb-1">
+                      {new Date(session.start_time).toLocaleDateString('ar-EG', { weekday: 'short' })}
+                    </span>
+                    <div className="flex items-center gap-1 text-primary-600 font-black text-[10px]">
+                      <Clock className="w-3 h-3" />
+                      <span>{new Date(session.start_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-gray-50 border border-dashed border-gray-200 rounded-2xl p-6 text-center">
+              <p className="text-[10px] text-gray-400 font-bold">لا توجد اختبارات إضافية مجدولة</p>
+            </div>
+          )}
+        </div>
+
+        {/* Instructions */}
+        <div className="space-y-3">
+          <h3 className="text-xs font-black text-gray-900 flex items-center gap-1.5 px-1">
+            <Info className="w-4 h-4 text-primary-600" />
+            تعليمات هامة
+          </h3>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-4">
+            {[
+              { icon: <Smartphone className="w-4 h-4" />, title: 'استقرار الإنترنت', desc: 'تأكد من وجود اتصال ثابت.' },
+              { icon: <ShieldAlert className="w-4 h-4" />, title: 'نظام مكافحة الغش', desc: 'مغادرة الصفحة يعرضك للحرمان.' },
+              { icon: <Clock className="w-4 h-4" />, title: 'الوقت المحدد', desc: 'تسليم تلقائي عند انتهاء الوقت.' },
+            ].map((item, i) => (
+              <div key={i} className="flex gap-3 items-center">
+                <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
+                  {item.icon}
+                </div>
+                <div>
+                  <h5 className="font-black text-gray-900 text-[11px]">{item.title}</h5>
+                  <p className="text-gray-500 text-[9px] font-medium mt-0.5">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <MainLayout>
+      <div className="pb-12">
+        {userRole === 'teacher' ? renderTeacherView() : renderStudentView()}
       </div>
 
       {/* Enter Exam Confirmation Modal */}
       <AnimatePresence>
-        {showEnterConfirm && (
+        {showEnterConfirm && selectedSession && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -342,7 +530,7 @@ export default function Home() {
               </div>
               <h3 className="text-2xl font-black text-center text-gray-900 mb-4">تأكيد دخول الاختبار</h3>
               <p className="text-center text-gray-500 mb-8 leading-relaxed">
-                أنت على وشك البدء في اختبار <span className="font-bold text-blue-600">"{Array.isArray(upcomingSession.exams) ? upcomingSession.exams[0]?.title : upcomingSession.exams?.title}"</span>. 
+                أنت على وشك البدء في اختبار <span className="font-bold text-blue-600">"{selectedSession.exams?.title}"</span>. 
                 يرجى التأكد من استقرار اتصال الإنترنت لديك وعدم مغادرة الصفحة أثناء الحل.
               </p>
               
@@ -350,7 +538,7 @@ export default function Home() {
                 <Button
                   onClick={handleEnterExam}
                   disabled={isEntering}
-                  className="w-full py-6 bg-blue-600 hover:bg-blue-700 rounded-2xl text-lg font-bold shadow-lg shadow-blue-100"
+                  className="w-full py-6 bg-blue-600 hover:bg-blue-700 rounded-2xl text-lg font-black shadow-lg shadow-blue-100"
                 >
                   {isEntering ? (
                     <>
