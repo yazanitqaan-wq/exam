@@ -653,6 +653,14 @@ export default function Home() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Footer */}
+      <footer className="bg-blue-600 py-6 mt-12 -mx-4 sm:-mx-6 md:-mx-8 -mb-4 sm:-mb-6 md:-mb-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-center gap-1.5 text-blue-100 text-sm font-medium" dir="ltr">
+          <span>Designed by</span>
+          <span className="font-black text-white">Yazan Abu Kuhail</span>
+        </div>
+      </footer>
     </MainLayout>
   );
 }
