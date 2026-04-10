@@ -20,9 +20,9 @@ export default function Home() {
   const [showEnterConfirm, setShowEnterConfirm] = useState(false);
   const [selectedSession, setSelectedSession] = useState<any>(null);
   const [isEntering, setIsEntering] = useState(false);
-
   const [isLoading, setIsLoading] = useState(true);
   const [debugInfo, setDebugInfo] = useState<string>('');
+  const [reEntryError, setReEntryError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!studentId) {
@@ -80,11 +80,19 @@ export default function Home() {
           return;
         }
 
+        let currentStudentId = studentId;
+        let queryColumn = 'id';
+
+        // Check if studentId is a legacy id_number (not a UUID)
+        if (currentStudentId.length !== 36) {
+          queryColumn = 'id_number';
+        }
+
         // 1. جلب بيانات الصف الخاص بالطالب
         const { data: studentData, error: studentError } = await supabase
           .from('students')
-          .select('grade, section, name')
-          .eq('id_number', studentId)
+          .select('id, grade, section, name')
+          .eq(queryColumn, currentStudentId)
           .single();
 
         if (!isMounted) return;
@@ -94,6 +102,12 @@ export default function Home() {
           setDebugInfo(`خطأ في جلب بيانات الطالب: ${studentError?.message || 'لا توجد بيانات'}`);
           setIsLoading(false);
           return;
+        }
+
+        // Update localStorage if it was legacy
+        if (queryColumn === 'id_number') {
+          localStorage.setItem('studentId', studentData.id);
+          currentStudentId = studentData.id;
         }
 
         const grade = studentData.grade?.trim() || '';
@@ -234,11 +248,12 @@ export default function Home() {
     setIsEntering(true);
     
     try {
+      const currentStudentId = localStorage.getItem('studentId');
       const { data, error } = await supabase
         .from('exam_submissions')
         .select('status')
         .eq('session_id', selectedSession.id)
-        .eq('student_id', studentId)
+        .eq('student_id', currentStudentId)
         .single();
 
       if (data) {
@@ -248,7 +263,7 @@ export default function Home() {
         if (data.status === 'kicked') msg = 'لقد تم طردك من هذا الاختبار بسبب مخالفة القوانين ولا يمكنك الدخول مجدداً.';
         if (data.status === 'exited') msg = 'لقد قمت بالخروج من هذا الاختبار مسبقاً ولا يمكنك العودة.';
         if (data.status === 'started') msg = 'لقد بدأت هذا الاختبار مسبقاً (ربما من جهاز آخر أو قمت بتحديث الصفحة) ولا يمكنك الدخول مجدداً.';
-        alert(msg);
+        setReEntryError(msg);
         return;
       }
     } catch (err) {
@@ -577,46 +592,63 @@ export default function Home() {
       {/* Enter Exam Confirmation Modal */}
       <AnimatePresence>
         {showEnterConfirm && selectedSession && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white rounded-[2.5rem] p-8 sm:p-10 max-w-md w-full shadow-2xl border border-blue-100"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              className="bg-white rounded-2xl p-5 max-w-xs w-full shadow-lg"
             >
-              <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                <BookOpen className="w-10 h-10" />
-              </div>
-              <h3 className="text-2xl font-black text-center text-gray-900 mb-4">تأكيد دخول الاختبار</h3>
-              <p className="text-center text-gray-500 mb-8 leading-relaxed">
-                أنت على وشك البدء في اختبار <span className="font-bold text-blue-600">"{selectedSession.exams?.title}"</span>. 
-                يرجى التأكد من استقرار اتصال الإنترنت لديك وعدم مغادرة الصفحة أثناء الحل.
+              <h3 className="text-sm font-black text-gray-900 mb-2">دخول الاختبار</h3>
+              <p className="text-[10px] text-gray-500 mb-4 leading-relaxed">
+                اختبار: <span className="font-bold text-blue-600">{selectedSession.exams?.title}</span><br/>
+                تأكد من استقرار الإنترنت. لا يمكنك التراجع بعد الدخول.
               </p>
               
-              <div className="flex flex-col gap-3">
+              <div className="flex gap-2">
                 <Button
                   onClick={handleEnterExam}
                   disabled={isEntering}
-                  className="w-full py-6 bg-blue-600 hover:bg-blue-700 rounded-2xl text-lg font-black shadow-lg shadow-blue-100"
+                  className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl text-[10px] font-bold"
                 >
-                  {isEntering ? (
-                    <>
-                      <Loader2 className="w-5 h-5 ml-2 animate-spin" />
-                      جاري الدخول...
-                    </>
-                  ) : (
-                    'موافق، ابدأ الآن'
-                  )}
+                  {isEntering ? 'جاري الدخول...' : 'ابدأ الآن'}
                 </Button>
                 <Button
                   variant="ghost"
                   onClick={() => setShowEnterConfirm(false)}
                   disabled={isEntering}
-                  className="w-full py-6 rounded-2xl text-gray-400 hover:text-gray-600"
+                  className="flex-1 py-2 rounded-xl text-[10px] bg-gray-50 hover:bg-gray-100"
                 >
                   إلغاء
                 </Button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Re-entry Error Modal */}
+      <AnimatePresence>
+        {reEntryError && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              className="bg-white rounded-2xl p-5 max-w-xs w-full shadow-lg border border-red-100"
+            >
+              <div className="flex items-center gap-2 mb-2 text-red-600">
+                <AlertCircle className="w-4 h-4" />
+                <h3 className="text-sm font-black">عذراً، لا يمكنك الدخول</h3>
+              </div>
+              <p className="text-[10px] text-gray-600 mb-4 leading-relaxed">
+                {reEntryError}
+              </p>
+              <Button onClick={() => setReEntryError(null)} className="w-full py-2 text-[10px] bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-xl">
+                إغلاق
+              </Button>
             </motion.div>
           </div>
         )}

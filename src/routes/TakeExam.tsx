@@ -94,13 +94,22 @@ export default function TakeExam() {
   useEffect(() => {
     const fetchData = async () => {
       if (!sessionId) return;
-      const studentId = localStorage.getItem('studentId');
+      let studentId = localStorage.getItem('studentId');
       if (!studentId) {
         navigate('/login');
         return;
       }
       
       try {
+        // Handle legacy id_number
+        if (studentId.length !== 36) {
+          const { data: sData } = await supabase.from('students').select('id').eq('id_number', studentId).single();
+          if (sData) {
+            studentId = sData.id;
+            localStorage.setItem('studentId', studentId);
+          }
+        }
+
         // Check if already submitted/started
         const { data: existingSub } = await supabase
           .from('exam_submissions')
@@ -498,48 +507,24 @@ export default function TakeExam() {
 
       {/* Footer Navigation */}
       <footer className="bg-white border-t border-gray-100 p-3 sm:p-4 sticky bottom-0 z-30">
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))}
-            disabled={currentQuestionIndex === 0}
-            className="rounded-xl px-3 sm:px-6 text-xs"
-          >
-            <ChevronRight className="w-4 h-4 ml-1 sm:ml-2" />
-            السابق
-          </Button>
-
-          <div className="hidden sm:flex items-center gap-1.5">
-            {questions.map((_, idx) => (
-              <button
-                key={idx}
-                onClick={() => setCurrentQuestionIndex(idx)}
-                className={cn(
-                  "w-2 h-2 rounded-full transition-all",
-                  currentQuestionIndex === idx ? "bg-primary-600 w-6" : "bg-gray-200 hover:bg-gray-300"
-                )}
-              />
-            ))}
-          </div>
-
+        <div className="max-w-5xl mx-auto flex items-center justify-center">
           {currentQuestionIndex === questions.length - 1 ? (
             <Button
               size="sm"
               onClick={() => setShowSubmitConfirm(true)}
-              className="rounded-xl px-4 sm:px-8 bg-green-600 hover:bg-green-700 shadow-lg shadow-green-100 text-xs"
+              className="rounded-xl px-8 bg-green-600 hover:bg-green-700 shadow-sm text-xs"
             >
               تسليم الاختبار
-              <Send className="w-3 h-3 mr-1.5 sm:mr-2" />
+              <Send className="w-3 h-3 mr-2" />
             </Button>
           ) : (
             <Button
               size="sm"
               onClick={() => setCurrentQuestionIndex(prev => Math.min(questions.length - 1, prev + 1))}
-              className="rounded-xl px-4 sm:px-8 text-xs"
+              className="rounded-xl px-8 text-xs"
             >
               التالي
-              <ChevronLeft className="w-4 h-4 mr-1 sm:mr-2" />
+              <ChevronLeft className="w-4 h-4 mr-2" />
             </Button>
           )}
         </div>
@@ -548,36 +533,34 @@ export default function TakeExam() {
       {/* Submit Confirmation Modal */}
       <AnimatePresence>
         {showSubmitConfirm && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40">
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white rounded-[2rem] p-6 sm:p-8 max-w-sm w-full shadow-2xl"
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              className="bg-white rounded-2xl p-5 max-w-xs w-full shadow-lg"
             >
-              <div className="w-16 h-16 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Send className="w-8 h-8" />
-              </div>
-              <h3 className="text-lg font-black text-center text-gray-900 mb-2">تأكيد تسليم الاختبار</h3>
-              <p className="text-center text-xs text-gray-600 mb-6 leading-relaxed">
+              <h3 className="text-sm font-black text-center text-gray-900 mb-2">تأكيد التسليم</h3>
+              <p className="text-center text-[10px] text-gray-600 mb-4 leading-relaxed">
                 هل أنت متأكد من رغبتك في تسليم الإجابات الآن؟ 
                 لقد أجبت على <span className="font-bold text-primary-600">{Object.keys(answers).length}</span> سؤال من أصل <span className="font-bold text-primary-600">{questions.length}</span>.
               </p>
-              <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
                 <Button
                   onClick={handleSubmit}
                   isLoading={isSubmitting}
-                  className="w-full py-4 bg-green-600 hover:bg-green-700 rounded-xl text-sm font-bold"
+                  className="flex-1 py-2 bg-green-600 hover:bg-green-700 rounded-xl text-[10px] font-bold"
                 >
-                  نعم، تسليم الآن
+                  نعم، تسليم
                 </Button>
                 <Button
                   variant="ghost"
                   onClick={() => setShowSubmitConfirm(false)}
                   disabled={isSubmitting}
-                  className="w-full py-4 rounded-xl text-sm"
+                  className="flex-1 py-2 rounded-xl text-[10px] bg-gray-50 hover:bg-gray-100"
                 >
-                  مراجعة الإجابات
+                  إلغاء
                 </Button>
               </div>
             </motion.div>

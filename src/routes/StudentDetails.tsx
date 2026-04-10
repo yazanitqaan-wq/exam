@@ -13,9 +13,13 @@ import {
   Users, 
   Loader2,
   Clock,
-  IdCard
+  IdCard,
+  Award,
+  BookOpenCheck
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
+import { motion } from 'motion/react';
 
 interface Student {
   id: string;
@@ -35,13 +39,66 @@ export default function StudentDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [student, setStudent] = useState<Student | null>(null);
+  const [studentExams, setStudentExams] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (id) {
       fetchStudentDetails();
+      fetchStudentExams();
     }
   }, [id]);
+
+  const fetchStudentExams = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('exam_submissions')
+        .select(`
+          id,
+          score,
+          status,
+          submitted_at,
+          exam_sessions (
+            exams (
+              title,
+              subject,
+              questions (count)
+            )
+          )
+        `)
+        .eq('student_id', id)
+        .eq('status', 'submitted')
+        .order('submitted_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        const formattedExams = data.map((sub: any) => {
+          const total = sub.exam_sessions?.exams?.questions?.[0]?.count || 0;
+          const percentage = total > 0 ? (sub.score / total) * 100 : 0;
+          let statusText = 'مقبول';
+          let color = 'bg-gray-500';
+          if (percentage >= 90) { statusText = 'ممتاز'; color = 'bg-emerald-500'; }
+          else if (percentage >= 80) { statusText = 'جيد جداً'; color = 'bg-blue-500'; }
+          else if (percentage >= 70) { statusText = 'جيد'; color = 'bg-amber-500'; }
+
+          return {
+            id: sub.id,
+            subject: sub.exam_sessions?.exams?.subject || 'غير محدد',
+            title: sub.exam_sessions?.exams?.title || 'اختبار',
+            score: sub.score,
+            total: total,
+            date: new Date(sub.submitted_at).toLocaleDateString('ar-EG'),
+            status: statusText,
+            color: color
+          };
+        });
+        setStudentExams(formattedExams);
+      }
+    } catch (error) {
+      console.error("Error fetching student exams:", error);
+    }
+  };
 
   const fetchStudentDetails = async () => {
     setIsLoading(true);
@@ -155,6 +212,68 @@ export default function StudentDetails() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <DetailItem icon={<MapPin />} label="المحافظة" value={student.governorate || 'غير محدد'} />
                 <DetailItem icon={<MapPin />} label="المنطقة" value={student.region || 'غير محدد'} />
+              </div>
+            </div>
+            {/* Exams History */}
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+                <Award className="w-5 h-5 text-emerald-600" />
+                سجل الاختبارات
+              </h3>
+              
+              <div className="space-y-3">
+                {studentExams.length > 0 ? (
+                  studentExams.map((exam, index) => (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      key={exam.id}
+                      className="group p-4 rounded-2xl border border-gray-100 bg-gray-50/50 hover:bg-white hover:shadow-md hover:border-primary-100 transition-all"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm", exam.color)}>
+                            <BookOpenCheck className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="text-xs font-black text-gray-900">{exam.title} - {exam.subject}</h3>
+                            <div className="flex items-center gap-2 mt-1">
+                              <div className="flex items-center gap-1 text-gray-400 text-[9px] font-bold">
+                                <Clock className="w-3 h-3" />
+                                <span>{exam.date}</span>
+                              </div>
+                              <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                              <span className="text-[9px] font-black text-primary-600">{exam.status}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 border-gray-100 pt-3 sm:pt-0 mt-1 sm:mt-0">
+                          <div className="text-left">
+                            <div className="flex items-baseline gap-1">
+                              <span className="text-lg font-black text-gray-900">{exam.score}</span>
+                              <span className="text-[10px] font-bold text-gray-400">/ {exam.total}</span>
+                            </div>
+                            <div className="w-20 h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden">
+                              <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: `${exam.total > 0 ? (exam.score / exam.total) * 100 : 0}%` }}
+                                transition={{ duration: 1, delay: 0.5 }}
+                                className={cn("h-full rounded-full", exam.color)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 text-gray-400 border-2 border-dashed border-gray-100 rounded-xl">
+                    <BookOpenCheck className="w-8 h-8 mb-2 opacity-20" />
+                    <p className="text-xs font-bold">لا توجد امتحانات مسجلة حالياً</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

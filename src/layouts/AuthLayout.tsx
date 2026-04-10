@@ -36,10 +36,10 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
               <BookOpenCheck className="w-10 h-10 text-white" />
             </div>
             <h2 className="text-4xl md:text-5xl font-extrabold mb-6 leading-tight">
-              مستقبلك يبدأ <br /> بخطوة واحدة
+              بوابة الاختبارات <br /> الإلكترونية
             </h2>
             <p className="text-lg md:text-xl text-blue-100 max-w-md mx-auto leading-relaxed">
-              منصة الامتحانات الأذكى والأكثر تطوراً لتقييم مهاراتك ومتابعة تقدمك الأكاديمي بكل سهولة واحترافية.
+              المنصة الرسمية لتقديم الاختبارات الأكاديمية. يرجى إدخال بيانات الدخول المعتمدة للوصول إلى لوحة التحكم الخاصة بك.
             </p>
           </motion.div>
 

@@ -7,6 +7,7 @@ import StudentDetails from './routes/StudentDetails';
 import CreateExam from './routes/CreateExam';
 import PublishExam from './routes/PublishExam';
 import TakeExam from './routes/TakeExam';
+import TeacherGrades from './routes/TeacherGrades';
 
 const router = createBrowserRouter([
   {
@@ -44,6 +45,10 @@ const router = createBrowserRouter([
   {
     path: "/take-exam/:sessionId",
     element: <TakeExam />,
+  },
+  {
+    path: "/grades",
+    element: <TeacherGrades />,
   },
 ]);
 

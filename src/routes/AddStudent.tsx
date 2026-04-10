@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/layouts/MainLayout';
-import { ArrowRight, User, Calendar, Hash, Sparkles, Loader2, Mail, School, MapPin, GraduationCap, Users, CheckCircle2, Trash2, Plus } from 'lucide-react';
+import { ArrowRight, User, Calendar, Hash, Sparkles, Loader2, Mail, School, MapPin, GraduationCap, Users, CheckCircle2, Trash2, Plus, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { GoogleGenAI } from '@google/genai';
@@ -26,6 +26,7 @@ export default function AddStudent() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [pasteText, setPasteText] = useState('');
   const [extractedStudents, setExtractedStudents] = useState<StudentData[]>([]);
+  const [existingStudentsError, setExistingStudentsError] = useState<{name: string, idNumber: string}[] | null>(null);
   
   const [formData, setFormData] = useState<StudentData>({
     name: '',
@@ -54,7 +55,9 @@ export default function AddStudent() {
         استخرج بيانات جميع الطلاب المذكورين في النص التالي.
         لكل طالب، استخرج: الاسم (name)، تاريخ الميلاد YYYY-MM-DD (dob)، رقم الهوية (idNumber)، الصف (grade)، الشعبة (section)، البريد الإلكتروني (email)، المدرسة (school)، المحافظة (governorate)، المنطقة (region).
         أرجع النتيجة كـ JSON Array يحتوي على كائنات بهذه المفاتيح بالضبط: name, dob, idNumber, grade, section, email, school, governorate, region.
+        حتى لو كان طالباً واحداً، أرجعه داخل مصفوفة [].
         إذا لم تجد معلومة معينة، اترك قيمتها فارغة "".
+        تأكد من استخراج جميع الطلاب المذكورين في النص بلا استثناء.
         النص:
         ${pasteText}
       `;
@@ -106,13 +109,48 @@ export default function AddStudent() {
     if (extractedStudents.length === 0) return;
     
     setIsLoading(true);
+    setExistingStudentsError(null);
     try {
+      // 1. Filter out empty ID numbers
+      const validStudents = extractedStudents.filter(s => s.idNumber && s.idNumber.trim() !== '');
+      
+      if (validStudents.length === 0) {
+        alert("لا يوجد طلاب بأرقام هوية صحيحة للحفظ.");
+        setIsLoading(false);
+        return;
+      }
+
+      // 2. Remove duplicates within the extracted list itself
+      const uniqueStudents: StudentData[] = [];
+      const seenIds = new Set<string>();
+      for (const s of validStudents) {
+        if (!seenIds.has(s.idNumber)) {
+          seenIds.add(s.idNumber);
+          uniqueStudents.push(s);
+        }
+      }
+
+      // Check for existing students in DB
+      const idNumbers = uniqueStudents.map(s => s.idNumber);
+      const { data: existingStudents, error: checkError } = await supabase
+        .from('students')
+        .select('id_number, name')
+        .in('id_number', idNumbers);
+        
+      if (checkError) throw checkError;
+      
+      if (existingStudents && existingStudents.length > 0) {
+        setExistingStudentsError(existingStudents.map(s => ({ name: s.name, idNumber: s.id_number })));
+        setIsLoading(false);
+        return;
+      }
+
       const { error } = await supabase
         .from('students')
         .insert(
-          extractedStudents.map(s => ({
-            name: s.name,
-            dob: s.dob,
+          uniqueStudents.map(s => ({
+            name: s.name || 'بدون اسم',
+            dob: s.dob || '2000-01-01',
             id_number: s.idNumber,
             grade: s.grade,
             section: s.section,
@@ -120,7 +158,7 @@ export default function AddStudent() {
             school: s.school,
             governorate: s.governorate,
             region: s.region,
-            password: Math.floor(100000 + Math.random() * 900000).toString() // توليد كلمة سر عشوائية من 6 أرقام
+            password: Math.floor(100000 + Math.random() * 900000).toString()
           }))
         );
 
@@ -225,6 +263,33 @@ export default function AddStudent() {
           </div>
 
           {/* Extracted List Preview */}
+          {existingStudentsError && (
+            <div className="bg-red-50 border border-red-200 p-6 rounded-3xl">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-red-100 text-red-600 rounded-xl flex items-center justify-center">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-red-900">عذراً، بعض الطلاب مضافين مسبقاً</h2>
+                  <p className="text-sm text-red-700/70">يرجى إزالة الطلاب التاليين من القائمة للمتابعة</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {existingStudentsError.map((s, i) => (
+                  <div key={i} className="bg-white p-3 rounded-xl border border-red-100 text-sm flex justify-between items-center">
+                    <span className="font-bold text-gray-900">{s.name}</span>
+                    <span className="text-gray-500 font-mono text-xs">{s.idNumber}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 flex justify-end">
+                <Button variant="outline" onClick={() => setExistingStudentsError(null)} className="border-red-200 text-red-600 hover:bg-red-50">
+                  حسناً، فهمت
+                </Button>
+              </div>
+            </div>
+          )}
+
           {extractedStudents.length > 0 && (
             <div className="space-y-4">
               <h2 className="font-bold text-gray-900 flex items-center gap-2">

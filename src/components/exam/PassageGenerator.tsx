@@ -48,7 +48,7 @@ export function PassageGenerator({ onGenerate, language, setLanguage }: PassageG
         All questions MUST be Multiple Choice Questions (MCQ) with exactly 4 options.
         The output language MUST be ${language}.
 
-        CRITICAL REQUIREMENT: For EACH question, you MUST extract a comprehensive excerpt (a full paragraph or at least 4 to 8 lines) from the passage that provides the complete context where the answer is found. Put this excerpt in the 'passageExcerpt' field.
+        CRITICAL REQUIREMENT: For EACH question, you MUST extract a medium-length excerpt from the passage that provides the context where the answer is found. The excerpt should NOT be too short and NOT be too long. Ideally, include the sentence containing the answer, plus one sentence before it and one sentence after it. Put this excerpt in the 'passageExcerpt' field.
 
         Passage:
         """

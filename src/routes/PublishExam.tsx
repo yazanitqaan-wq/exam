@@ -55,59 +55,54 @@ const DateTimeSelector = ({
         {/* Date Section */}
         <div className="flex-1 flex gap-2">
           <div className="relative flex-1">
-            <select 
+            <input 
+              type="number"
+              placeholder="اليوم (1-31)"
+              min="1" max="31"
               value={value.day} onChange={(e) => handleChange('day', e.target.value)}
-              className="w-full px-3 py-2.5 pr-8 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-white appearance-none cursor-pointer text-sm"
-            >
-              <option value="" disabled>اليوم</option>
-              {DAYS.map(d => <option key={d} value={d}>{d.toString().padStart(2, '0')}</option>)}
-            </select>
-            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-white text-sm text-center"
+            />
           </div>
           <div className="relative flex-1">
-            <select 
+            <input 
+              type="number"
+              placeholder="الشهر (1-12)"
+              min="1" max="12"
               value={value.month} onChange={(e) => handleChange('month', e.target.value)}
-              className="w-full px-3 py-2.5 pr-8 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-white appearance-none cursor-pointer text-sm"
-            >
-              <option value="" disabled>الشهر</option>
-              {MONTHS.map(m => <option key={m} value={m}>{m.toString().padStart(2, '0')}</option>)}
-            </select>
-            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-white text-sm text-center"
+            />
           </div>
           <div className="relative flex-1">
-            <select 
+            <input 
+              type="number"
+              placeholder="السنة (مثال: 2026)"
+              min={new Date().getFullYear()}
               value={value.year} onChange={(e) => handleChange('year', e.target.value)}
-              className="w-full px-3 py-2.5 pr-8 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-white appearance-none cursor-pointer text-sm"
-            >
-              <option value="" disabled>السنة</option>
-              {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-white text-sm text-center"
+            />
           </div>
         </div>
 
         {/* Time Section */}
         <div className="flex-1 flex gap-2">
           <div className="relative flex-1">
-            <select 
+            <input 
+              type="number"
+              placeholder="الساعة (0-23)"
+              min="0" max="23"
               value={value.hour} onChange={(e) => handleChange('hour', e.target.value)}
-              className="w-full px-3 py-2.5 pr-8 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-white appearance-none cursor-pointer text-sm"
-            >
-              <option value="" disabled>الساعة (24)</option>
-              {HOURS.map(h => <option key={h} value={h}>{h.toString().padStart(2, '0')}</option>)}
-            </select>
-            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-white text-sm text-center"
+            />
           </div>
           <span className="flex items-center text-gray-400 font-bold">:</span>
           <div className="relative flex-1">
-            <select 
+            <input 
+              type="number"
+              placeholder="الدقيقة (0-59)"
+              min="0" max="59"
               value={value.minute} onChange={(e) => handleChange('minute', e.target.value)}
-              className="w-full px-3 py-2.5 pr-8 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-white appearance-none cursor-pointer text-sm"
-            >
-              <option value="" disabled>الدقيقة</option>
-              {MINUTES.map(m => <option key={m} value={m}>{m.toString().padStart(2, '0')}</option>)}
-            </select>
-            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all bg-white text-sm text-center"
+            />
           </div>
         </div>
       </div>

@@ -112,7 +112,8 @@ export const LoginForm = () => {
           }
           localStorage.setItem('userRole', 'student');
           localStorage.setItem('studentName', data.name);
-          localStorage.setItem('studentId', data.id_number);
+          localStorage.setItem('studentId', data.id);
+          localStorage.setItem('studentIdNumber', data.id_number);
           // Clear any teacher remnants
           localStorage.removeItem('teacherEmail');
           

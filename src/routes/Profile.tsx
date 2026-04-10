@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/layouts/MainLayout';
-import { UserPlus, LogOut, Users, GraduationCap, School, MapPin, Loader2, Calendar, Mail, Award, Clock, ChevronRight, Sparkles, BookOpenCheck, User, ChevronDown, Send } from 'lucide-react';
+import { UserPlus, LogOut, Users, GraduationCap, School, MapPin, Loader2, Calendar, Mail, Award, Clock, ChevronRight, Sparkles, BookOpenCheck, User, ChevronDown, Send, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
@@ -37,9 +38,20 @@ export default function Profile() {
   const [students, setStudents] = useState<Student[]>([]);
   const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [studentExams, setStudentExams] = useState<ExamResult[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  
+  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
 
-  const mockExams: ExamResult[] = [];
+  const normalizeText = (text: string) => {
+    if (!text) return '';
+    return text.replace(/\s+/g, '')
+               .replace(/[أإآ]/g, 'ا')
+               .replace(/ة/g, 'ه')
+               .replace(/[-_]/g, '');
+  };
 
   const formatName = (fullName: string) => {
     const parts = fullName.trim().split(/\s+/);
@@ -56,19 +68,91 @@ export default function Profile() {
       fetchStudents();
     } else if (role === 'student' && studentId) {
       fetchCurrentStudent();
+      fetchStudentExams();
     }
   }, [role, studentId]);
+
+  const fetchStudentExams = async () => {
+    try {
+      let currentStudentId = studentId;
+      if (currentStudentId && currentStudentId.length !== 36) {
+        const { data: sData } = await supabase.from('students').select('id').eq('id_number', currentStudentId).single();
+        if (sData) {
+          currentStudentId = sData.id;
+          localStorage.setItem('studentId', currentStudentId);
+        }
+      }
+
+      const { data, error } = await supabase
+        .from('exam_submissions')
+        .select(`
+          id,
+          score,
+          status,
+          submitted_at,
+          exam_sessions (
+            exams (
+              title,
+              subject,
+              questions (count)
+            )
+          )
+        `)
+        .eq('student_id', currentStudentId)
+        .eq('status', 'submitted')
+        .order('submitted_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        const formattedExams = data.map((sub: any) => {
+          const total = sub.exam_sessions?.exams?.questions?.[0]?.count || 0;
+          const percentage = total > 0 ? (sub.score / total) * 100 : 0;
+          let statusText = 'مقبول';
+          let color = 'bg-gray-500';
+          if (percentage >= 90) { statusText = 'ممتاز'; color = 'bg-emerald-500'; }
+          else if (percentage >= 80) { statusText = 'جيد جداً'; color = 'bg-blue-500'; }
+          else if (percentage >= 70) { statusText = 'جيد'; color = 'bg-amber-500'; }
+
+          return {
+            id: sub.id,
+            subject: sub.exam_sessions?.exams?.subject || 'غير محدد',
+            title: sub.exam_sessions?.exams?.title || 'اختبار',
+            score: sub.score,
+            total: total,
+            date: new Date(sub.submitted_at).toLocaleDateString('ar-EG'),
+            status: statusText as any,
+            color: color
+          };
+        });
+        setStudentExams(formattedExams);
+      }
+    } catch (error) {
+      console.error("Error fetching student exams:", error);
+    }
+  };
 
   const fetchCurrentStudent = async () => {
     setIsLoading(true);
     try {
+      let currentStudentId = studentId;
+      let queryColumn = 'id';
+      if (currentStudentId && currentStudentId.length !== 36) {
+        queryColumn = 'id_number';
+      }
+
       const { data, error } = await supabase
         .from('students')
         .select('*')
-        .eq('id_number', studentId)
+        .eq(queryColumn, currentStudentId)
         .single();
 
       if (error) throw error;
+      
+      if (queryColumn === 'id_number' && data) {
+        localStorage.setItem('studentId', data.id);
+      }
+      
       setCurrentStudent(data);
     } catch (error) {
       console.error("Error fetching student details:", error);
@@ -97,6 +181,25 @@ export default function Profile() {
   const handleLogout = () => {
     localStorage.removeItem('userRole');
     navigate('/login');
+  };
+
+  const handleDeleteStudent = async () => {
+    if (!studentToDelete) return;
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.from('students').delete().eq('id', studentToDelete.id);
+      if (error) throw error;
+      
+      // Update local state
+      setStudents(students.filter(s => s.id !== studentToDelete.id));
+      setStudentToDelete(null);
+      setDeleteConfirmationText('');
+    } catch (error) {
+      console.error("Error deleting student:", error);
+      alert("حدث خطأ أثناء حذف الطالب.");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Group students by Grade and Section
@@ -159,6 +262,15 @@ export default function Profile() {
                   </div>
                   <span className="font-black text-indigo-700 text-xs">نشر امتحان متزامن</span>
                 </button>
+                <button 
+                  onClick={() => navigate('/grades')}
+                  className="flex flex-col items-center justify-center gap-3 p-4 sm:p-6 rounded-xl border-2 border-dashed border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50 hover:border-emerald-300 transition-all group"
+                >
+                  <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                    <GraduationCap className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <span className="font-black text-emerald-700 text-xs">علامات الطلاب</span>
+                </button>
               </div>
             </div>
 
@@ -214,6 +326,7 @@ export default function Profile() {
                                       <th className="py-2 px-4 font-bold">اسم الطالب</th>
                                       <th className="py-2 px-4 font-bold">رقم الهوية</th>
                                       <th className="py-2 px-4 font-bold">المدرسة</th>
+                                      <th className="py-2 px-4 font-bold w-10"></th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -231,6 +344,17 @@ export default function Profile() {
                                         </td>
                                         <td className="py-2 px-4 text-[10px] text-gray-500">
                                           {student.school || 'غير محدد'}
+                                        </td>
+                                        <td className="py-2 px-4 text-left">
+                                          <button 
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setStudentToDelete(student);
+                                            }}
+                                            className="text-gray-300 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50"
+                                          >
+                                            <Trash2 className="w-4 h-4" />
+                                          </button>
                                         </td>
                                       </tr>
                                     ))}
@@ -351,8 +475,8 @@ export default function Profile() {
                     </div>
 
                     <div className="space-y-3">
-                      {mockExams.length > 0 ? (
-                        mockExams.map((exam, index) => (
+                      {studentExams.length > 0 ? (
+                        studentExams.map((exam, index) => (
                           <motion.div
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -366,7 +490,7 @@ export default function Profile() {
                                   <BookOpenCheck className="w-5 h-5" />
                                 </div>
                                 <div>
-                                  <h3 className="text-xs font-black text-gray-900 group-hover:text-primary-600 transition-colors">{exam.subject}</h3>
+                                  <h3 className="text-xs font-black text-gray-900 group-hover:text-primary-600 transition-colors">{(exam as any).title} - {exam.subject}</h3>
                                   <div className="flex items-center gap-2 mt-1">
                                     <div className="flex items-center gap-1 text-gray-400 text-[9px] font-bold">
                                       <Clock className="w-3 h-3" />
@@ -387,14 +511,11 @@ export default function Profile() {
                                   <div className="w-20 h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden">
                                     <motion.div 
                                       initial={{ width: 0 }}
-                                      animate={{ width: `${(exam.score / exam.total) * 100}%` }}
+                                      animate={{ width: `${exam.total > 0 ? (exam.score / exam.total) * 100 : 0}%` }}
                                       transition={{ duration: 1, delay: 0.5 }}
                                       className={cn("h-full rounded-full", exam.color)}
                                     />
                                   </div>
-                                </div>
-                                <div className="w-8 h-8 rounded-lg bg-white border border-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-primary-600 group-hover:text-white group-hover:border-primary-600 transition-all">
-                                  <ChevronRight className="w-4 h-4" />
                                 </div>
                               </div>
                             </div>
@@ -428,6 +549,56 @@ export default function Profile() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {studentToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl"
+          >
+            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Trash2 className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-bold text-center text-gray-900 mb-2">تأكيد الحذف</h2>
+            <p className="text-center text-gray-500 mb-6">
+              هل أنت متأكد من رغبتك في حذف الطالب <span className="font-bold text-gray-900">{studentToDelete.name}</span>؟ لا يمكن التراجع عن هذا الإجراء.
+            </p>
+            
+            <div className="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-100 text-right">
+              <label className="block text-sm font-bold text-gray-700 mb-2">
+                يرجى كتابة اسم الطالب لتأكيد الحذف:
+              </label>
+              <Input 
+                type="text" 
+                value={deleteConfirmationText}
+                onChange={(e) => setDeleteConfirmationText(e.target.value)}
+                placeholder="اكتب الاسم هنا..."
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <Button 
+                variant="outline" 
+                onClick={() => { setStudentToDelete(null); setDeleteConfirmationText(''); }}
+                className="flex-1"
+                disabled={isDeleting}
+              >
+                إلغاء
+              </Button>
+              <Button 
+                onClick={handleDeleteStudent}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                isLoading={isDeleting}
+                disabled={isDeleting || normalizeText(deleteConfirmationText) !== normalizeText(studentToDelete.name)}
+              >
+                نعم، احذف الطالب
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </MainLayout>
   );
 }

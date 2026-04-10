@@ -5,7 +5,7 @@ import { MainLayout } from '@/layouts/MainLayout';
 import { motion } from 'motion/react';
 import { 
   ArrowRight, BookOpenCheck, Settings, Upload, Type, PenTool, 
-  PlusCircle, Save, FileText, CheckCircle2, Circle, Clock, Target, Trash2, Globe, BookOpen, Pin
+  PlusCircle, Save, FileText, CheckCircle2, Circle, Clock, Target, Trash2, Globe, BookOpen, Pin, DownloadCloud, X
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
@@ -37,6 +37,75 @@ export default function CreateExam() {
   // Save Modal State
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Load Exam State
+  const [showLoadModal, setShowLoadModal] = useState(false);
+  const [previousExams, setPreviousExams] = useState<any[]>([]);
+  const [isLoadingExams, setIsLoadingExams] = useState(false);
+
+  const fetchPreviousExams = async () => {
+    setIsLoadingExams(true);
+    try {
+      const { data, error } = await supabase
+        .from('exams')
+        .select('id, title, subject, grade, created_at')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setPreviousExams(data || []);
+    } catch (error) {
+      console.error('Error fetching exams:', error);
+    } finally {
+      setIsLoadingExams(false);
+    }
+  };
+
+  const loadExam = async (examId: string) => {
+    try {
+      // Fetch exam details
+      const { data: examData, error: examError } = await supabase
+        .from('exams')
+        .select('*')
+        .eq('id', examId)
+        .single();
+      
+      if (examError) throw examError;
+
+      // Fetch questions
+      const { data: questionsData, error: questionsError } = await supabase
+        .from('questions')
+        .select('*')
+        .eq('exam_id', examId)
+        .order('order_index', { ascending: true });
+
+      if (questionsError) throw questionsError;
+
+      // Populate state
+      setExamTitle(examData.title + ' (نسخة معدلة)');
+      setSubject(examData.subject);
+      setGrade(examData.grade);
+      setDuration(examData.duration_minutes.toString());
+
+      const loadedQuestions: Question[] = questionsData.map((q: any) => ({
+        id: q.id,
+        type: q.question_type,
+        text: q.question_text,
+        options: q.options || [],
+        correctAnswer: q.correct_answer,
+        passageExcerpt: q.passage_excerpt,
+        keepOrder: q.keep_order,
+        points: 1 // Defaulting to 1 as points aren't in DB schema currently
+      }));
+
+      setQuestions(loadedQuestions);
+      setShowLoadModal(false);
+      alert('تم استدعاء الاختبار بنجاح. يمكنك الآن التعديل عليه وحفظه كاختبار جديد.');
+
+    } catch (error) {
+      console.error('Error loading exam:', error);
+      alert('حدث خطأ أثناء استدعاء الاختبار.');
+    }
+  };
 
   const handleSaveClick = () => {
     if (!examTitle.trim()) {
@@ -270,13 +339,26 @@ export default function CreateExam() {
               <p className="text-gray-500 text-xs sm:text-sm">قم بتصميم اختبارك وتوليد الأسئلة بسهولة</p>
             </div>
           </div>
-          <Button 
-            onClick={handleSaveClick}
-            className="w-full sm:w-auto gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 sm:py-2"
-          >
-            <Save className="w-4 h-4" />
-            حفظ الاختبار
-          </Button>
+          <div className="flex w-full sm:w-auto gap-2">
+            <Button 
+              onClick={() => {
+                fetchPreviousExams();
+                setShowLoadModal(true);
+              }}
+              variant="outline"
+              className="flex-1 sm:flex-none gap-2 py-3 sm:py-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+            >
+              <DownloadCloud className="w-4 h-4" />
+              استدعاء اختبار
+            </Button>
+            <Button 
+              onClick={handleSaveClick}
+              className="flex-1 sm:flex-none gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 sm:py-2"
+            >
+              <Save className="w-4 h-4" />
+              حفظ الاختبار
+            </Button>
+          </div>
         </div>
 
         {/* Step 1: Exam Settings */}
@@ -748,6 +830,66 @@ export default function CreateExam() {
               >
                 {isSaving ? 'جاري الحفظ...' : 'تأكيد الحفظ'}
               </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Load Exam Modal */}
+      {showLoadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl p-6 md:p-8 max-w-2xl w-full shadow-2xl max-h-[80vh] flex flex-col"
+          >
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center">
+                  <DownloadCloud className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-gray-900">استدعاء اختبار سابق</h3>
+                  <p className="text-gray-500 text-xs">اختر اختباراً لتعديله وحفظه كنسخة جديدة</p>
+                </div>
+              </div>
+              <button onClick={() => setShowLoadModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-2 space-y-3">
+              {isLoadingExams ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                </div>
+              ) : previousExams.length > 0 ? (
+                previousExams.map((exam) => (
+                  <div key={exam.id} className="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/50 transition-colors group">
+                    <div>
+                      <h4 className="font-bold text-gray-900 group-hover:text-blue-700 transition-colors">{exam.title}</h4>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 font-bold">
+                        <span>{exam.subject}</span>
+                        <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                        <span>الصف {exam.grade}</span>
+                        <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                        <span>{new Date(exam.created_at).toLocaleDateString('ar-EG')}</span>
+                      </div>
+                    </div>
+                    <Button 
+                      onClick={() => loadExam(exam.id)}
+                      size="sm"
+                      className="bg-blue-100 text-blue-700 hover:bg-blue-200"
+                    >
+                      استدعاء
+                    </Button>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  لا توجد اختبارات سابقة.
+                </div>
+              )}
             </div>
           </motion.div>
         </div>
