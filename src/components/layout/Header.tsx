@@ -50,52 +50,57 @@ export const Header = () => {
         )}
       </AnimatePresence>
 
-      <header className="sticky top-0 z-[60] w-full bg-white/80 backdrop-blur-xl border-b border-gray-100 shadow-sm">
+      <header className="sticky top-0 z-[60] w-full bg-white/90 backdrop-blur-xl border-b border-gray-100 shadow-sm transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16 sm:h-20 flex-row-reverse">
-            {/* Logo (Now on the left because of flex-row-reverse) */}
+          <div className="flex justify-between items-center h-16 sm:h-20">
+            {/* Logo */}
             <div 
               onClick={() => navigate('/home')}
-              className="flex items-center gap-2 sm:gap-3 text-primary-600 font-black text-xl sm:text-2xl cursor-pointer hover:opacity-80 transition-opacity"
+              className="flex items-center gap-3 cursor-pointer group"
             >
-              <span className="hidden xs:block">إختبارات</span>
-              <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center shadow-inner border border-primary-100">
-                <BookOpenCheck className="w-6 h-6" />
+              <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/20 text-white group-hover:scale-105 transition-transform duration-300">
+                <BookOpenCheck className="w-5 h-5" />
               </div>
+              <span className="hidden xs:block font-black text-xl text-gray-900 tracking-tight">
+                منصة <span className="text-primary-600">اختبارات</span>
+              </span>
             </div>
 
-            {/* Desktop Navigation (Now on the right) */}
-            <div className="hidden md:flex items-center gap-6 flex-row-reverse">
-              <div className="flex items-center gap-1 bg-gray-50 p-1.5 rounded-2xl border border-gray-100 flex-row-reverse">
-                {navLinks.map((link) => (
-                  <button
-                    key={link.to}
-                    onClick={() => navigate(link.to)}
-                    className={cn(
-                      "px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 flex-row-reverse",
-                      window.location.pathname === link.to
-                        ? "bg-white text-primary-600 shadow-sm border border-gray-100"
-                        : "text-gray-500 hover:text-gray-900"
-                    )}
-                  >
-                    <link.icon className="w-4 h-4" />
-                    {link.label}
-                  </button>
-                ))}
-              </div>
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center gap-6">
+              <nav className="flex items-center gap-2 bg-gray-50/80 p-1.5 rounded-2xl border border-gray-100">
+                {navLinks.map((link) => {
+                  const isActive = window.location.pathname === link.to;
+                  return (
+                    <button
+                      key={link.to}
+                      onClick={() => navigate(link.to)}
+                      className={cn(
+                        "px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2",
+                        isActive
+                          ? "bg-white text-primary-600 shadow-sm border border-gray-100"
+                          : "text-gray-500 hover:text-gray-900 hover:bg-gray-100/50"
+                      )}
+                    >
+                      <link.icon className={cn("w-4 h-4", isActive ? "text-primary-600" : "text-gray-400")} />
+                      {link.label}
+                    </button>
+                  );
+                })}
+              </nav>
 
               <div className="h-8 w-px bg-gray-200 mx-2"></div>
 
-              <div className="flex items-center gap-4 flex-row-reverse">
+              <div className="flex items-center gap-4">
                 <div className="text-right hidden lg:block">
-                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">مرحباً بك</p>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">مرحباً بك</p>
                   <p className="text-sm font-black text-gray-900">{userName}</p>
                 </div>
                 <Button 
                   variant="outline" 
                   size="sm"
                   onClick={handleLogout}
-                  className="rounded-xl border-red-100 text-red-600 hover:bg-red-50 hover:border-red-200 font-bold flex-row-reverse"
+                  className="rounded-xl border-red-100 text-red-600 hover:bg-red-50 hover:border-red-200 font-bold"
                 >
                   <LogOut className="w-4 h-4 ml-2" />
                   خروج
@@ -109,7 +114,7 @@ export const Header = () => {
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className="p-2.5 rounded-xl bg-gray-50 text-gray-600 border border-gray-100 hover:bg-gray-100 transition-colors"
               >
-                {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
             </div>
           </div>

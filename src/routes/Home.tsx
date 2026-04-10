@@ -229,12 +229,35 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [upcomingSessions]);
 
-  const handleEnterExam = () => {
-    if (!selectedSession) return;
+  const handleEnterExam = async () => {
+    if (!selectedSession || !studentId) return;
     setIsEntering(true);
+    
+    try {
+      const { data, error } = await supabase
+        .from('exam_submissions')
+        .select('status')
+        .eq('session_id', selectedSession.id)
+        .eq('student_id', studentId)
+        .single();
+
+      if (data) {
+        setIsEntering(false);
+        setShowEnterConfirm(false);
+        let msg = 'لقد قمت بتقديم هذا الاختبار مسبقاً.';
+        if (data.status === 'kicked') msg = 'لقد تم طردك من هذا الاختبار بسبب مخالفة القوانين ولا يمكنك الدخول مجدداً.';
+        if (data.status === 'exited') msg = 'لقد قمت بالخروج من هذا الاختبار مسبقاً ولا يمكنك العودة.';
+        if (data.status === 'started') msg = 'لقد بدأت هذا الاختبار مسبقاً (ربما من جهاز آخر أو قمت بتحديث الصفحة) ولا يمكنك الدخول مجدداً.';
+        alert(msg);
+        return;
+      }
+    } catch (err) {
+      console.error("Error checking submission:", err);
+    }
+
     setTimeout(() => {
       navigate(`/take-exam/${selectedSession.id}`);
-    }, 1500);
+    }, 500);
   };
 
   const renderTeacherView = () => (
@@ -337,6 +360,28 @@ export default function Home() {
               </p>
             </div>
           </div>
+
+          {/* Recent Activities Idea */}
+          <h3 className="text-xs font-black text-gray-900 flex items-center gap-1.5 px-1 mt-6">
+            <Clock className="w-4 h-4 text-primary-600" />
+            آخر النشاطات
+          </h3>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                <p className="text-[10px] font-bold text-gray-600">تم تسجيل دخولك بنجاح</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                <p className="text-[10px] font-bold text-gray-600">تم تحديث قائمة الطلاب</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                <p className="text-[10px] font-bold text-gray-600">النظام يعمل بكفاءة</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -401,11 +446,11 @@ export default function Home() {
               </div>
 
               {/* Countdown */}
-              <div className="grid grid-cols-3 gap-2 flex-row-reverse">
+              <div className="grid grid-cols-3 gap-2">
                 {[
-                  { label: 'ثانية', val: timeLefts[upcomingSessions[0].id]?.seconds || 0 },
-                  { label: 'دقيقة', val: timeLefts[upcomingSessions[0].id]?.minutes || 0 },
                   { label: 'ساعة', val: timeLefts[upcomingSessions[0].id]?.hours || 0 },
+                  { label: 'دقيقة', val: timeLefts[upcomingSessions[0].id]?.minutes || 0 },
+                  { label: 'ثانية', val: timeLefts[upcomingSessions[0].id]?.seconds || 0 },
                 ].map((t, i) => (
                   <div key={i} className="bg-black/20 rounded-xl p-2 border border-white/10 text-center">
                     <div className="text-lg font-black mb-0.5">{t.val.toString().padStart(2, '0')}</div>
@@ -481,28 +526,42 @@ export default function Home() {
           )}
         </div>
 
-        {/* Instructions */}
-        <div className="space-y-3">
-          <h3 className="text-xs font-black text-gray-900 flex items-center gap-1.5 px-1">
-            <Info className="w-4 h-4 text-primary-600" />
-            تعليمات هامة
-          </h3>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-4">
-            {[
-              { icon: <Smartphone className="w-4 h-4" />, title: 'استقرار الإنترنت', desc: 'تأكد من وجود اتصال ثابت.' },
-              { icon: <ShieldAlert className="w-4 h-4" />, title: 'نظام مكافحة الغش', desc: 'مغادرة الصفحة يعرضك للحرمان.' },
-              { icon: <Clock className="w-4 h-4" />, title: 'الوقت المحدد', desc: 'تسليم تلقائي عند انتهاء الوقت.' },
-            ].map((item, i) => (
-              <div key={i} className="flex gap-3 items-center">
-                <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
-                  {item.icon}
+        {/* Instructions & Tip of the Day */}
+        <div className="space-y-4">
+          <div className="space-y-3">
+            <h3 className="text-xs font-black text-gray-900 flex items-center gap-1.5 px-1">
+              <Info className="w-4 h-4 text-primary-600" />
+              تعليمات هامة
+            </h3>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-4">
+              {[
+                { icon: <Smartphone className="w-4 h-4" />, title: 'استقرار الإنترنت', desc: 'تأكد من وجود اتصال ثابت.' },
+                { icon: <ShieldAlert className="w-4 h-4" />, title: 'نظام مكافحة الغش', desc: 'مغادرة الصفحة يعرضك للحرمان.' },
+                { icon: <Clock className="w-4 h-4" />, title: 'الوقت المحدد', desc: 'تسليم تلقائي عند انتهاء الوقت.' },
+              ].map((item, i) => (
+                <div key={i} className="flex gap-3 items-center">
+                  <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
+                    {item.icon}
+                  </div>
+                  <div>
+                    <h5 className="font-black text-gray-900 text-[11px]">{item.title}</h5>
+                    <p className="text-gray-500 text-[9px] font-medium mt-0.5">{item.desc}</p>
+                  </div>
                 </div>
-                <div>
-                  <h5 className="font-black text-gray-900 text-[11px]">{item.title}</h5>
-                  <p className="text-gray-500 text-[9px] font-medium mt-0.5">{item.desc}</p>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-xs font-black text-gray-900 flex items-center gap-1.5 px-1">
+              <BookOpen className="w-4 h-4 text-primary-600" />
+              نصيحة اليوم
+            </h3>
+            <div className="bg-gradient-to-br from-primary-50 to-blue-50 rounded-2xl border border-primary-100 p-4">
+              <p className="text-[11px] font-bold text-primary-800 leading-relaxed">
+                "النجاح لا يأتي صدفة، بل هو نتيجة للتحضير الجيد والمثابرة. راجع دروسك بانتظام وكن مستعداً دائماً."
+              </p>
+            </div>
           </div>
         </div>
       </div>

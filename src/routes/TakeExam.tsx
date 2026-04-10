@@ -57,10 +57,14 @@ export default function TakeExam() {
     }
   }, [blocker.state]);
 
-  const handleConfirmExit = () => {
+  const handleConfirmExit = async () => {
     if (exitStep === 1) {
       setExitStep(2);
     } else {
+      const studentId = localStorage.getItem('studentId');
+      if (studentId && sessionId) {
+        await supabase.from('exam_submissions').update({ status: 'exited' }).eq('session_id', sessionId).eq('student_id', studentId);
+      }
       if (blocker.state === 'blocked') {
         blocker.proceed?.();
       } else {
@@ -90,8 +94,27 @@ export default function TakeExam() {
   useEffect(() => {
     const fetchData = async () => {
       if (!sessionId) return;
+      const studentId = localStorage.getItem('studentId');
+      if (!studentId) {
+        navigate('/login');
+        return;
+      }
       
       try {
+        // Check if already submitted/started
+        const { data: existingSub } = await supabase
+          .from('exam_submissions')
+          .select('status')
+          .eq('session_id', sessionId)
+          .eq('student_id', studentId)
+          .single();
+
+        if (existingSub) {
+          alert('لا يمكنك الدخول إلى هذا الاختبار مرة أخرى.');
+          navigate('/home');
+          return;
+        }
+
         // 1. Fetch Session
         const { data: sessionData, error: sessionError } = await supabase
           .from('exam_sessions')
@@ -113,6 +136,22 @@ export default function TakeExam() {
         if (questionsError) throw questionsError;
         setQuestions(questionsData || []);
         
+        // 3. Insert started record
+        const { error: insertError } = await supabase
+          .from('exam_submissions')
+          .insert({
+            session_id: sessionId,
+            student_id: studentId,
+            status: 'started'
+          });
+
+        if (insertError) {
+          console.error('Error starting exam:', insertError);
+          alert('حدث خطأ أثناء بدء الاختبار. يرجى المحاولة مرة أخرى.');
+          navigate('/home');
+          return;
+        }
+
         setIsLoading(false);
       } catch (error) {
         console.error('Error fetching exam data:', error);
@@ -148,8 +187,16 @@ export default function TakeExam() {
         setScreenshotWarnings(newCount);
         
         if (newCount >= 3) {
-          alert('تم إنهاء الاختبار بسبب محاولات تصوير الشاشة المتكررة.');
-          handleSubmit();
+          const studentId = localStorage.getItem('studentId');
+          if (studentId && sessionId) {
+            supabase.from('exam_submissions').update({ status: 'kicked' }).eq('session_id', sessionId).eq('student_id', studentId).then(() => {
+              alert('تم إنهاء الاختبار وطردك بسبب محاولات تصوير الشاشة المتكررة.');
+              navigate('/home');
+            });
+          } else {
+            alert('تم إنهاء الاختبار وطردك بسبب محاولات تصوير الشاشة المتكررة.');
+            navigate('/home');
+          }
         } else {
           setCheatWarningType('screenshot');
           setShowCheatWarning(true);
@@ -218,12 +265,35 @@ export default function TakeExam() {
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    // Simulate submission for now
-    setTimeout(() => {
+    const studentId = localStorage.getItem('studentId');
+    
+    let score = 0;
+    questions.forEach(q => {
+      if (answers[q.id] === q.correct_answer) {
+        score += 1;
+      }
+    });
+
+    try {
+      if (studentId && sessionId) {
+        await supabase
+          .from('exam_submissions')
+          .update({
+            status: 'submitted',
+            answers: answers,
+            score: score,
+            submitted_at: new Date().toISOString()
+          })
+          .eq('session_id', sessionId)
+          .eq('student_id', studentId);
+      }
       setIsSubmitting(false);
       setIsFinished(true);
-      // In a real app, you'd save to 'exam_submissions' table
-    }, 2000);
+    } catch (err) {
+      console.error("Error submitting:", err);
+      alert("حدث خطأ أثناء التسليم، يرجى المحاولة مرة أخرى.");
+      setIsSubmitting(false);
+    }
   };
 
   const isArabic = (text: string) => {
