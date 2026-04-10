@@ -8,9 +8,9 @@ interface AuthLayoutProps {
 
 export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
   return (
-    <div className="min-h-screen flex w-full bg-gray-50">
+    <div className="h-screen flex w-full bg-gray-50 overflow-hidden">
       {/* Right Panel - Form */}
-      <div className="flex-1 flex flex-col justify-center px-4 sm:px-6 lg:px-20 xl:px-24 relative z-10 py-8 sm:py-12">
+      <div className="flex-1 flex flex-col justify-center px-4 sm:px-6 lg:px-20 xl:px-24 relative z-10 py-8 sm:py-12 overflow-y-auto hide-scrollbar">
         <div className="flex items-center justify-center lg:justify-start gap-2 text-primary-600 font-bold text-2xl mb-8 lg:absolute lg:top-8 lg:right-8 lg:mb-0">
           <BookOpenCheck className="w-8 h-8" />
           <span>إختبارات</span>

@@ -219,12 +219,12 @@ export const LoginForm = () => {
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ type: 'spring', bounce: 0.5, delay: 0.2 }}
-                className="w-14 h-14 sm:w-16 sm:h-16 bg-primary-50 text-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-inner border border-primary-100"
+                className="w-12 h-12 sm:w-16 sm:h-16 bg-primary-50 text-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-inner border border-primary-100"
               >
-                <Lock className="w-7 h-7 sm:w-8 sm:h-8" />
+                <Lock className="w-6 h-6 sm:w-8 sm:h-8" />
               </motion.div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">مرحباً بك مجدداً</h1>
-              <p className="text-sm sm:text-base text-gray-500">سجل دخولك للوصول إلى منصة الامتحانات</p>
+              <h1 className="text-xl sm:text-3xl font-bold text-gray-900 mb-2">مرحباً بك مجدداً</h1>
+              <p className="text-[10px] sm:text-base text-gray-500">سجل دخولك للوصول إلى منصة الامتحانات</p>
             </div>
 
             <form onSubmit={handleLoginSubmit} className="space-y-5 sm:space-y-6 bg-white p-5 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100">
@@ -236,17 +236,17 @@ export const LoginForm = () => {
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className="bg-red-50 border border-red-100 p-4 rounded-xl flex items-center gap-3 text-red-600"
+                    className="bg-red-50 border border-red-100 p-3 sm:p-4 rounded-xl flex items-center gap-3 text-red-600"
                   >
-                    <AlertCircle className="w-5 h-5 shrink-0" />
-                    <p className="text-sm font-bold">{error}</p>
+                    <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                    <p className="text-[10px] sm:text-sm font-bold">{error}</p>
                   </motion.div>
                 )}
               </AnimatePresence>
 
               <div className="space-y-4 sm:space-y-5 mt-6">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-[10px] sm:text-sm font-semibold text-gray-700 mb-2">
                     {role === 'student' ? 'الرمز السري' : 'البريد الإلكتروني أو الرقم السري'}
                   </label>
                   <Input
@@ -254,22 +254,24 @@ export const LoginForm = () => {
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     placeholder={role === 'student' ? 'أدخل الرمز السري' : 'أدخل البريد الإلكتروني أو الرقم السري'}
-                    icon={<User className="w-5 h-5" />}
+                    icon={<User className="w-4 h-4 sm:w-5 sm:h-5" />}
                     required
+                    className="text-[10px] sm:text-sm h-10 sm:h-12"
                   />
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-semibold text-gray-700">كلمة السر</label>
+                    <label className="block text-[10px] sm:text-sm font-semibold text-gray-700">كلمة السر</label>
                   </div>
                   <Input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    icon={<Lock className="w-5 h-5" />}
+                    icon={<Lock className="w-4 h-4 sm:w-5 sm:h-5" />}
                     required
+                    className="text-[10px] sm:text-sm h-10 sm:h-12"
                   />
                 </div>
               </div>
@@ -280,20 +282,20 @@ export const LoginForm = () => {
                   id="rememberMe"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                 />
-                <label htmlFor="rememberMe" className="text-sm text-gray-600 cursor-pointer select-none">
+                <label htmlFor="rememberMe" className="text-[10px] sm:text-sm text-gray-600 cursor-pointer select-none">
                   تذكر بياناتي على هذا الجهاز
                 </label>
               </div>
 
-              <Button type="submit" className="w-full group mt-6 sm:mt-8" size="lg" isLoading={isLoading}>
+              <Button type="submit" className="w-full group mt-6 sm:mt-8 text-[11px] sm:text-base h-11 sm:h-14" size="lg" isLoading={isLoading}>
                 <span>تسجيل الدخول</span>
-                {!isLoading && <ArrowLeft className="w-5 h-5 mr-2 group-hover:-translate-x-1 transition-transform" />}
+                {!isLoading && <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 mr-2 group-hover:-translate-x-1 transition-transform" />}
               </Button>
 
               {role === 'student' && (
-                <p className="text-center text-sm text-gray-600 mt-5 sm:mt-6 pt-5 sm:pt-6 border-t border-gray-100">
+                <p className="text-center text-[10px] sm:text-sm text-gray-600 mt-5 sm:mt-6 pt-5 sm:pt-6 border-t border-gray-100">
                   لا تعرف بيانات الدخول؟{' '}
                   <button type="button" onClick={() => setView('recovery')} className="font-bold text-primary-600 hover:text-primary-700 transition-colors">
                     استعلم عنها الآن
@@ -317,12 +319,12 @@ export const LoginForm = () => {
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ type: 'spring', bounce: 0.5, delay: 0.2 }}
-                className="w-14 h-14 sm:w-16 sm:h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-inner border border-blue-100"
+                className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-inner border border-blue-100"
               >
-                <Search className="w-7 h-7 sm:w-8 sm:h-8" />
+                <Search className="w-6 h-6 sm:w-8 sm:h-8" />
               </motion.div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">استعلام عن بيانات الدخول</h1>
-              <p className="text-sm sm:text-base text-gray-500">أدخل بياناتك كما هي في الهوية لاسترجاع حسابك</p>
+              <h1 className="text-xl sm:text-3xl font-bold text-gray-900 mb-2">استعلام عن بيانات الدخول</h1>
+              <p className="text-[10px] sm:text-base text-gray-500">أدخل بياناتك كما هي في الهوية لاسترجاع حسابك</p>
             </div>
 
             <form onSubmit={handleRecoverySubmit} className="space-y-4 sm:space-y-5 bg-white p-5 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100">
@@ -332,39 +334,39 @@ export const LoginForm = () => {
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className="bg-red-50 border border-red-100 p-4 rounded-xl flex items-center gap-3 text-red-600 mb-4"
+                    className="bg-red-50 border border-red-100 p-3 sm:p-4 rounded-xl flex items-center gap-3 text-red-600 mb-4"
                   >
-                    <AlertCircle className="w-5 h-5 shrink-0" />
-                    <p className="text-sm font-bold">{error}</p>
+                    <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                    <p className="text-[10px] sm:text-sm font-bold">{error}</p>
                   </motion.div>
                 )}
               </AnimatePresence>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">الاسم الأول</label>
-                  <Input type="text" placeholder="الاسم الأول" required />
+                  <label className="block text-[10px] sm:text-sm font-semibold text-gray-700 mb-2">الاسم الأول</label>
+                  <Input type="text" placeholder="الاسم الأول" required className="text-[10px] sm:text-sm h-10 sm:h-12" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">اسم العائلة</label>
-                  <Input type="text" placeholder="اسم العائلة" required />
+                  <label className="block text-[10px] sm:text-sm font-semibold text-gray-700 mb-2">اسم العائلة</label>
+                  <Input type="text" placeholder="اسم العائلة" required className="text-[10px] sm:text-sm h-10 sm:h-12" />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">تاريخ الميلاد</label>
-                <Input type="date" icon={<Calendar className="w-5 h-5" />} required />
+                <label className="block text-[10px] sm:text-sm font-semibold text-gray-700 mb-2">تاريخ الميلاد</label>
+                <Input type="date" icon={<Calendar className="w-4 h-4 sm:w-5 sm:h-5" />} required className="text-[10px] sm:text-sm h-10 sm:h-12" />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">رقم الهوية</label>
-                <Input type="text" placeholder="رقم الهوية المكون من 9 أرقام" icon={<Hash className="w-5 h-5" />} required />
+                <label className="block text-[10px] sm:text-sm font-semibold text-gray-700 mb-2">رقم الهوية</label>
+                <Input type="text" placeholder="رقم الهوية المكون من 9 أرقام" icon={<Hash className="w-4 h-4 sm:w-5 sm:h-5" />} required className="text-[10px] sm:text-sm h-10 sm:h-12" />
               </div>
 
               <div className="flex flex-col gap-3 mt-6 sm:mt-8">
-                <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>
+                <Button type="submit" className="w-full text-[11px] sm:text-base h-11 sm:h-14" size="lg" isLoading={isLoading}>
                   موافق
                 </Button>
-                <Button type="button" variant="ghost" onClick={() => setView('login')} className="w-full" disabled={isLoading}>
+                <Button type="button" variant="ghost" onClick={() => setView('login')} className="w-full text-[11px] sm:text-sm h-10 sm:h-12" disabled={isLoading}>
                   عودة لتسجيل الدخول
                 </Button>
               </div>

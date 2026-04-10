@@ -16,9 +16,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       ghost: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
     };
     const sizes = {
-      sm: 'px-3 py-1.5 text-sm',
-      md: 'px-4 py-2.5 text-base',
-      lg: 'px-6 py-3 text-lg',
+      sm: 'px-3 py-1.5 text-[10px] sm:text-sm',
+      md: 'px-4 py-2.5 text-[11px] sm:text-base',
+      lg: 'px-6 py-3 text-[12px] sm:text-lg',
     };
 
     return (
