@@ -171,9 +171,9 @@ export default function Home() {
             setUpcomingSessions(validSessions);
             
             if (validSessions.length === 0 && sessions.length > 0) {
-              setDebugInfo(`تم العثور على ${sessions.length} جلسات، ولكن لا توجد جلسة تطابق صفك (${studentClassExact}) بعد توحيد النصوص.`);
+              setDebugInfo('لا يوجد جلسة امتحان الان');
             } else if (sessions.length === 0) {
-              setDebugInfo('لا توجد أي جلسات امتحانات مضافة في قاعدة البيانات حالياً.');
+              setDebugInfo('لا يوجد جلسة امتحان الان');
             }
           }
           setIsLoading(false);

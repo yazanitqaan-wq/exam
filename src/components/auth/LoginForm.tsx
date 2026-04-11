@@ -20,6 +20,10 @@ export const LoginForm = () => {
   const [recoveredData, setRecoveredData] = useState<{ id: string; pass: string } | null>(null);
   const [copiedField, setCopiedField] = useState<'id' | 'pass' | null>(null);
 
+  const [dobDay, setDobDay] = useState('');
+  const [dobMonth, setDobMonth] = useState('');
+  const [dobYear, setDobYear] = useState('');
+
   useEffect(() => {
     const savedRole = localStorage.getItem('rememberedRole');
     const savedId = localStorage.getItem('rememberedId');
@@ -135,8 +139,14 @@ export const LoginForm = () => {
     const form = e.currentTarget;
     const firstName = (form.elements[0] as HTMLInputElement).value.trim();
     const lastName = (form.elements[1] as HTMLInputElement).value.trim();
-    const dob = (form.elements[2] as HTMLInputElement).value;
-    const idNumber = (form.elements[3] as HTMLInputElement).value.trim();
+    const idNumber = (form.elements[5] as HTMLInputElement).value.trim(); // Adjusted index due to select elements
+
+    if (!dobDay || !dobMonth || !dobYear) {
+      setError('يرجى تحديد تاريخ الميلاد كاملاً.');
+      return;
+    }
+
+    const dob = `${dobYear}-${dobMonth.padStart(2, '0')}-${dobDay.padStart(2, '0')}`;
 
     setIsLoading(true);
     setError(null);
@@ -152,8 +162,12 @@ export const LoginForm = () => {
       if (dbError || !data) {
         setError('عذراً، لم نتمكن من العثور على حساب بهذه البيانات. يرجى التأكد من صحة المعلومات.');
       } else {
-        // التحقق من الاسم (بشكل بسيط)
-        if (data.name.includes(firstName) || data.name.includes(lastName)) {
+        // التحقق من الاسم (مطابقة تامة للاسم الأول والأخير)
+        const nameParts = data.name.trim().split(/\s+/);
+        const dbFirstName = nameParts[0];
+        const dbLastName = nameParts[nameParts.length - 1];
+
+        if (dbFirstName === firstName && dbLastName === lastName) {
           setRecoveredData({ id: data.id_number, pass: data.password });
           setView('recovery_success');
         } else {
@@ -351,10 +365,45 @@ export const LoginForm = () => {
                   <Input type="text" placeholder="اسم العائلة" required className="text-[10px] sm:text-sm h-10 sm:h-12" />
                 </div>
               </div>
+              <p className="text-red-500 text-[10px] sm:text-xs mt-1 font-bold">يجب أن يكون الاسم تماماً كما في شهادة الميلاد أو الهوية</p>
 
               <div>
                 <label className="block text-[10px] sm:text-sm font-semibold text-gray-700 mb-2">تاريخ الميلاد</label>
-                <Input type="date" icon={<Calendar className="w-4 h-4 sm:w-5 sm:h-5" />} required className="text-[10px] sm:text-sm h-10 sm:h-12" />
+                <div className="grid grid-cols-3 gap-2">
+                  <select 
+                    value={dobDay} 
+                    onChange={(e) => setDobDay(e.target.value)}
+                    required
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[10px] sm:text-sm focus:ring-2 focus:ring-primary-500 outline-none h-10 sm:h-12 appearance-none text-center"
+                  >
+                    <option value="" disabled>اليوم</option>
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                  <select 
+                    value={dobMonth} 
+                    onChange={(e) => setDobMonth(e.target.value)}
+                    required
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[10px] sm:text-sm focus:ring-2 focus:ring-primary-500 outline-none h-10 sm:h-12 appearance-none text-center"
+                  >
+                    <option value="" disabled>الشهر</option>
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                  <select 
+                    value={dobYear} 
+                    onChange={(e) => setDobYear(e.target.value)}
+                    required
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[10px] sm:text-sm focus:ring-2 focus:ring-primary-500 outline-none h-10 sm:h-12 appearance-none text-center"
+                  >
+                    <option value="" disabled>السنة</option>
+                    {Array.from({ length: 30 }, (_, i) => new Date().getFullYear() - 5 - i).map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>
