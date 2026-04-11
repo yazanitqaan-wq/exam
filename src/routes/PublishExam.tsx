@@ -286,23 +286,20 @@ export default function PublishExam() {
     if (!sessionToDelete) return;
     setIsDeleting(true);
     try {
-      const { data, error } = await supabase
+      // بدلاً من حذف الجلسة بالكامل (والذي سيؤدي لحذف العلامات)، نقوم فقط بإنهاء وقتها
+      // لتختفي من قائمة "الامتحانات المنشورة حالياً" وتنتقل إلى "الامتحانات السابقة"
+      const { error } = await supabase
         .from('exam_sessions')
-        .delete()
-        .eq('id', sessionToDelete)
-        .select();
+        .update({ end_time: new Date().toISOString() })
+        .eq('id', sessionToDelete);
         
       if (error) throw error;
-      
-      if (!data || data.length === 0) {
-        throw new Error("لم يتم الحذف! يرجى التأكد من تفعيل صلاحية الحذف (DELETE Policy) لجدول exam_sessions في Supabase.");
-      }
       
       setSessionToDelete(null);
       fetchPublishedSessions();
     } catch (error: any) {
-      console.error('Error deleting session:', error);
-      alert('حدث خطأ أثناء الحذف: ' + error.message);
+      console.error('Error ending session:', error);
+      alert('حدث خطأ أثناء إنهاء الاختبار: ' + error.message);
     } finally {
       setIsDeleting(false);
     }
@@ -543,7 +540,7 @@ export default function PublishExam() {
                     onClick={() => setSessionToDelete(session.id)}
                     className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 shrink-0"
                   >
-                    حذف النشر
+                    إنهاء الاختبار
                   </Button>
                 </div>
               ))}
@@ -613,7 +610,7 @@ export default function PublishExam() {
 
       </div>
 
-      {/* Delete Confirmation Modal */}
+      {/* End Session Confirmation Modal */}
       {sessionToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <motion.div
@@ -624,9 +621,9 @@ export default function PublishExam() {
             <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
               <AlertCircle className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-black text-center text-gray-900 mb-2">تأكيد الحذف</h3>
+            <h3 className="text-xl font-black text-center text-gray-900 mb-2">تأكيد إنهاء الاختبار</h3>
             <p className="text-center text-gray-500 mb-8">
-              هل أنت متأكد من حذف هذا النشر؟ لن يتمكن الطلاب من رؤية الامتحان بعد حذفه.
+              هل أنت متأكد من إنهاء هذا الاختبار الآن؟ سيتم إغلاقه ولن يتمكن الطلاب من الدخول إليه، ولكن ستبقى علامات الطلاب الذين قدموه محفوظة في السجل.
             </p>
             <div className="flex gap-3">
               <Button
@@ -642,7 +639,7 @@ export default function PublishExam() {
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white"
                 disabled={isDeleting}
               >
-                {isDeleting ? 'جاري الحذف...' : 'نعم، احذف'}
+                {isDeleting ? 'جاري الإنهاء...' : 'نعم، أنهِ الاختبار'}
               </Button>
             </div>
           </motion.div>

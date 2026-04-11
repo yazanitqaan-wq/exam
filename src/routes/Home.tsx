@@ -292,8 +292,8 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8">
-        <div className="lg:col-span-2 space-y-4">
+      <div className="grid grid-cols-1 gap-4 sm:gap-8">
+        <div className="space-y-4">
           <div className="flex items-center justify-between px-1">
             <h3 className="text-xs font-black text-gray-900 flex items-center gap-1.5">
               <List className="w-4 h-4 text-primary-600" />
@@ -353,52 +353,19 @@ export default function Home() {
                     )}>
                       {session.status === 'active' ? 'مباشر الآن' : 'مجدول'}
                     </div>
+                    <Button 
+                      onClick={() => navigate(`/exam/${session.id}`)}
+                      size="sm" 
+                      variant="outline"
+                      className="rounded-xl text-[10px] h-8 px-3"
+                    >
+                      دخول للاختبار
+                    </Button>
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </div>
-
-        <div className="space-y-4">
-          <h3 className="text-xs font-black text-gray-900 flex items-center gap-1.5 px-1">
-            <Info className="w-4 h-4 text-primary-600" />
-            إحصائيات سريعة
-          </h3>
-          <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
-            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-              <p className="text-gray-400 text-[10px] font-bold mb-1">إجمالي الجلسات</p>
-              <p className="text-lg font-black text-primary-600">{teacherSessions.length}</p>
-            </div>
-            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-              <p className="text-gray-400 text-[10px] font-bold mb-1">الجلسات النشطة</p>
-              <p className="text-lg font-black text-green-600">
-                {teacherSessions.filter(s => s.status === 'active').length}
-              </p>
-            </div>
-          </div>
-
-          {/* Recent Activities Idea */}
-          <h3 className="text-xs font-black text-gray-900 flex items-center gap-1.5 px-1 mt-6">
-            <Clock className="w-4 h-4 text-primary-600" />
-            آخر النشاطات
-          </h3>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                <p className="text-[10px] font-bold text-gray-600">تم تسجيل دخولك بنجاح</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                <p className="text-[10px] font-bold text-gray-600">تم تحديث قائمة الطلاب</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                <p className="text-[10px] font-bold text-gray-600">النظام يعمل بكفاءة</p>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

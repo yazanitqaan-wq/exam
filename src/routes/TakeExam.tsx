@@ -43,11 +43,12 @@ export default function TakeExam() {
   // Navigation protection state
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [exitStep, setExitStep] = useState(1);
+  const isTeacher = localStorage.getItem('userRole') === 'teacher';
 
   // Block navigation
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
-      !isFinished && currentLocation.pathname !== nextLocation.pathname
+      !isFinished && !isTeacher && currentLocation.pathname !== nextLocation.pathname
   );
 
   useEffect(() => {
@@ -94,15 +95,16 @@ export default function TakeExam() {
   useEffect(() => {
     const fetchData = async () => {
       if (!sessionId) return;
+      
       let studentId = localStorage.getItem('studentId');
-      if (!studentId) {
+      if (!studentId && !isTeacher) {
         navigate('/login');
         return;
       }
       
       try {
         // Handle legacy id_number
-        if (studentId.length !== 36) {
+        if (studentId && studentId.length !== 36 && !isTeacher) {
           const { data: sData } = await supabase.from('students').select('id').eq('id_number', studentId).single();
           if (sData) {
             studentId = sData.id;
@@ -110,18 +112,20 @@ export default function TakeExam() {
           }
         }
 
-        // Check if already submitted/started
-        const { data: existingSub } = await supabase
-          .from('exam_submissions')
-          .select('status')
-          .eq('session_id', sessionId)
-          .eq('student_id', studentId)
-          .single();
+        if (!isTeacher) {
+          // Check if already submitted/started
+          const { data: existingSub } = await supabase
+            .from('exam_submissions')
+            .select('status')
+            .eq('session_id', sessionId)
+            .eq('student_id', studentId)
+            .single();
 
-        if (existingSub) {
-          alert('لا يمكنك الدخول إلى هذا الاختبار مرة أخرى.');
-          navigate('/home');
-          return;
+          if (existingSub) {
+            alert('لا يمكنك الدخول إلى هذا الاختبار مرة أخرى.');
+            navigate('/home');
+            return;
+          }
         }
 
         // 1. Fetch Session
@@ -145,20 +149,22 @@ export default function TakeExam() {
         if (questionsError) throw questionsError;
         setQuestions(questionsData || []);
         
-        // 3. Insert started record
-        const { error: insertError } = await supabase
-          .from('exam_submissions')
-          .insert({
-            session_id: sessionId,
-            student_id: studentId,
-            status: 'started'
-          });
+        if (!isTeacher) {
+          // 3. Insert started record
+          const { error: insertError } = await supabase
+            .from('exam_submissions')
+            .insert({
+              session_id: sessionId,
+              student_id: studentId,
+              status: 'started'
+            });
 
-        if (insertError) {
-          console.error('Error starting exam:', insertError);
-          alert('حدث خطأ أثناء بدء الاختبار. يرجى المحاولة مرة أخرى.');
-          navigate('/home');
-          return;
+          if (insertError) {
+            console.error('Error starting exam:', insertError);
+            alert('حدث خطأ أثناء بدء الاختبار. يرجى المحاولة مرة أخرى.');
+            navigate('/home');
+            return;
+          }
         }
 
         setIsLoading(false);
@@ -170,15 +176,33 @@ export default function TakeExam() {
     };
 
     fetchData();
-  }, [sessionId, navigate]);
+  }, [sessionId, navigate, isTeacher]);
 
   // Anti-cheat: Detect tab switching
   useEffect(() => {
+    if (isTeacher) return;
+
     const handleVisibilityChange = () => {
       if (document.hidden && !isFinished) {
-        setWarningCount(prev => prev + 1);
-        setCheatWarningType('tab');
-        setShowCheatWarning(true);
+        setWarningCount(prev => {
+          const newCount = prev + 1;
+          if (newCount >= 3) {
+            const studentId = localStorage.getItem('studentId');
+            if (studentId && sessionId) {
+              supabase.from('exam_submissions').update({ status: 'kicked' }).eq('session_id', sessionId).eq('student_id', studentId).then(() => {
+                alert('تم إنهاء الاختبار وطردك بسبب محاولات الخروج المتكررة من الصفحة.');
+                navigate('/home');
+              });
+            } else {
+              alert('تم إنهاء الاختبار وطردك بسبب محاولات الخروج المتكررة من الصفحة.');
+              navigate('/home');
+            }
+          } else {
+            setCheatWarningType('tab');
+            setShowCheatWarning(true);
+          }
+          return newCount;
+        });
       }
     };
 
@@ -231,10 +255,11 @@ export default function TakeExam() {
       document.removeEventListener('paste', preventCopy);
       document.removeEventListener('contextmenu', preventCopy);
     };
-  }, [isFinished, screenshotWarnings]);
+  }, [isFinished, screenshotWarnings, isTeacher]);
 
   // Prevent Refresh
   useEffect(() => {
+    if (isTeacher) return;
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (!isFinished) {
         e.preventDefault();
@@ -273,6 +298,12 @@ export default function TakeExam() {
   };
 
   const handleSubmit = async () => {
+    if (isTeacher) {
+      alert('هذه معاينة فقط. لا يتم حفظ إجابات المعلم.');
+      navigate('/home');
+      return;
+    }
+
     setIsSubmitting(true);
     const studentId = localStorage.getItem('studentId');
     

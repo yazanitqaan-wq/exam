@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { MainLayout } from '@/layouts/MainLayout';
 import { supabase } from '@/lib/supabase';
-import { Loader2, Search, Filter, BookOpen, GraduationCap, ChevronDown } from 'lucide-react';
+import { Loader2, Search, Filter, BookOpen, GraduationCap, ChevronDown, Trash2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/Button';
 
 export default function TeacherGrades() {
   const [gradesData, setGradesData] = useState<any[]>([]);
@@ -21,6 +22,10 @@ export default function TeacherGrades() {
   const [availableSections, setAvailableSections] = useState<string[]>([]);
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
   const [availableExams, setAvailableExams] = useState<string[]>([]);
+
+  // Delete State
+  const [submissionToDelete, setSubmissionToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     fetchGrades();
@@ -99,6 +104,27 @@ export default function TeacherGrades() {
     
     return matchGrade && matchSection && matchSubject && matchExam && matchSearch;
   });
+
+  const confirmDelete = async () => {
+    if (!submissionToDelete) return;
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('exam_submissions')
+        .delete()
+        .eq('id', submissionToDelete);
+
+      if (error) throw error;
+
+      setGradesData(prev => prev.filter(item => item.id !== submissionToDelete));
+      setSubmissionToDelete(null);
+    } catch (error) {
+      console.error("Error deleting submission:", error);
+      alert("حدث خطأ أثناء الحذف");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Group by Exam Title
   const groupedByExam = filteredData.reduce((acc, item) => {
@@ -217,6 +243,7 @@ export default function TeacherGrades() {
                         <th className="py-3 px-4 font-bold">الصف والشعبة</th>
                         <th className="py-3 px-4 font-bold">العلامة</th>
                         <th className="py-3 px-4 font-bold">النسبة</th>
+                        <th className="py-3 px-4 font-bold text-center">إجراءات</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -263,6 +290,15 @@ export default function TeacherGrades() {
                                 </div>
                               </div>
                             </td>
+                            <td className="py-3 px-4 text-center">
+                              <button
+                                onClick={() => setSubmissionToDelete(sub.id)}
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="حذف العلامة"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
                           </tr>
                         );
                       })}
@@ -282,6 +318,42 @@ export default function TeacherGrades() {
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {submissionToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl"
+          >
+            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-black text-center text-gray-900 mb-2">تأكيد الحذف</h3>
+            <p className="text-center text-gray-500 mb-8">
+              هل أنت متأكد من حذف علامة هذا الطالب؟ لا يمكن التراجع عن هذا الإجراء.
+            </p>
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setSubmissionToDelete(null)}
+                variant="outline"
+                className="flex-1"
+                disabled={isDeleting}
+              >
+                إلغاء
+              </Button>
+              <Button
+                onClick={confirmDelete}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'جاري الحذف...' : 'نعم، احذف'}
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </MainLayout>
   );
 }
