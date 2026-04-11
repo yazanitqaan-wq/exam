@@ -13,11 +13,14 @@ export default function TeacherGrades() {
   const [selectedGrade, setSelectedGrade] = useState<string>('all');
   const [selectedSection, setSelectedSection] = useState<string>('all');
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
+  const [selectedExam, setSelectedExam] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Unique options for filters
   const [availableGrades, setAvailableGrades] = useState<string[]>([]);
   const [availableSections, setAvailableSections] = useState<string[]>([]);
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
+  const [availableExams, setAvailableExams] = useState<string[]>([]);
 
   useEffect(() => {
     fetchGrades();
@@ -57,6 +60,7 @@ export default function TeacherGrades() {
         const grades = new Set<string>();
         const sections = new Set<string>();
         const subjects = new Set<string>();
+        const exams = new Set<string>();
         
         data.forEach(item => {
           const student = Array.isArray(item.students) ? item.students[0] : item.students;
@@ -66,11 +70,13 @@ export default function TeacherGrades() {
           if (student?.grade) grades.add(student.grade);
           if (student?.section) sections.add(student.section);
           if (exam?.subject) subjects.add(exam.subject);
+          if (exam?.title) exams.add(exam.title);
         });
         
         setAvailableGrades(Array.from(grades));
         setAvailableSections(Array.from(sections));
         setAvailableSubjects(Array.from(subjects));
+        setAvailableExams(Array.from(exams));
       }
     } catch (error) {
       console.error("Error fetching grades:", error);
@@ -88,7 +94,10 @@ export default function TeacherGrades() {
     const matchGrade = selectedGrade === 'all' || student?.grade === selectedGrade;
     const matchSection = selectedSection === 'all' || student?.section === selectedSection;
     const matchSubject = selectedSubject === 'all' || exam?.subject === selectedSubject;
-    return matchGrade && matchSection && matchSubject;
+    const matchExam = selectedExam === 'all' || exam?.title === selectedExam;
+    const matchSearch = searchQuery === '' || student?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    return matchGrade && matchSection && matchSubject && matchExam && matchSearch;
   });
 
   // Group by Exam Title
@@ -115,40 +124,68 @@ export default function TeacherGrades() {
             </div>
           </div>
 
-          {/* Filters */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-gray-500 px-1">الصف</label>
-              <select 
-                value={selectedGrade}
-                onChange={(e) => setSelectedGrade(e.target.value)}
-                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
-              >
-                <option value="all">جميع الصفوف</option>
-                {availableGrades.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
+          {/* Search and Filters */}
+          <div className="space-y-4">
+            {/* Search Bar */}
+            <div className="relative">
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
+                <Search className="w-5 h-5" />
+              </div>
+              <input
+                type="text"
+                placeholder="ابحث عن طالب بالاسم..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pr-10 pl-4 text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+              />
             </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-gray-500 px-1">الشعبة</label>
-              <select 
-                value={selectedSection}
-                onChange={(e) => setSelectedSection(e.target.value)}
-                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
-              >
-                <option value="all">جميع الشعب</option>
-                {availableSections.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-gray-500 px-1">المادة</label>
-              <select 
-                value={selectedSubject}
-                onChange={(e) => setSelectedSubject(e.target.value)}
-                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
-              >
-                <option value="all">جميع المواد</option>
-                {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+
+            {/* Filters Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-500 px-1">الامتحان</label>
+                <select 
+                  value={selectedExam}
+                  onChange={(e) => setSelectedExam(e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                >
+                  <option value="all">جميع الامتحانات</option>
+                  {availableExams.map(e => <option key={e} value={e}>{e}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-500 px-1">المادة</label>
+                <select 
+                  value={selectedSubject}
+                  onChange={(e) => setSelectedSubject(e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                >
+                  <option value="all">جميع المواد</option>
+                  {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-500 px-1">الصف</label>
+                <select 
+                  value={selectedGrade}
+                  onChange={(e) => setSelectedGrade(e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                >
+                  <option value="all">جميع الصفوف</option>
+                  {availableGrades.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-500 px-1">الشعبة</label>
+                <select 
+                  value={selectedSection}
+                  onChange={(e) => setSelectedSection(e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                >
+                  <option value="all">جميع الشعب</option>
+                  {availableSections.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
             </div>
           </div>
         </div>

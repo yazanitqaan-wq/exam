@@ -52,9 +52,11 @@ export default function Home() {
       try {
         if (userRole === 'teacher') {
           const fetchTeacherSessions = async () => {
+            const now = new Date().toISOString();
             const { data, error } = await supabase
               .from('exam_sessions')
               .select('*, exams(title, subject)')
+              .gt('end_time', now)
               .order('start_time', { ascending: false });
             
             if (error) {

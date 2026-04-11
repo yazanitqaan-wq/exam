@@ -50,7 +50,7 @@ export const Header = () => {
         )}
       </AnimatePresence>
 
-      <header className="sticky top-0 z-[60] w-full bg-white/90 backdrop-blur-xl border-b border-gray-100 shadow-sm transition-all duration-300">
+      <header className="sticky top-0 z-[60] w-full bg-white/95 sm:bg-white/90 sm:backdrop-blur-xl border-b border-gray-100 shadow-sm transition-colors duration-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16 sm:h-20">
             {/* Logo */}
@@ -129,15 +129,17 @@ export const Header = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
               onClick={() => setIsMenuOpen(false)}
               className="fixed inset-0 bg-black/40 z-[70] md:hidden"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
             />
             <motion.div
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
-              transition={{ type: 'tween', duration: 0.2, ease: 'easeOut' }}
-              className="fixed top-0 right-0 bottom-0 w-[280px] bg-white z-[80] md:hidden shadow-2xl border-l border-gray-100 flex flex-col"
+              transition={{ type: 'tween', duration: 0.2 }}
+              className="fixed top-0 right-0 bottom-0 w-[280px] bg-white z-[80] md:hidden shadow-lg border-l border-gray-100 flex flex-col will-change-transform"
             >
               <div className="p-6 border-b border-gray-50 flex justify-between items-center">
                 <div className="flex items-center gap-2 text-primary-600 font-black text-xl">

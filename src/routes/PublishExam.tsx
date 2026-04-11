@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/layouts/MainLayout';
 import { motion } from 'motion/react';
-import { ArrowRight, Send, Clock, Target, CheckCircle2, Circle, AlertCircle, ChevronDown, Calendar } from 'lucide-react';
+import { ArrowRight, Send, Clock, Target, CheckCircle2, Circle, AlertCircle, ChevronDown, Calendar, Search, History } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -118,14 +118,15 @@ export default function PublishExam() {
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   
   const [startDateTime, setStartDateTime] = useState<DateTimeState>({ day: '', month: '', year: '', hour: '', minute: '' });
-  const [endDateTime, setEndDateTime] = useState<DateTimeState>({ day: '', month: '', year: '', hour: '', minute: '' });
   
   const [shuffleOption, setShuffleOption] = useState('partial');
   const [resultsOption, setResultsOption] = useState('after_30_mins');
   const [isPublishing, setIsPublishing] = useState(false);
 
   const [publishedSessions, setPublishedSessions] = useState<any[]>([]);
+  const [pastSessions, setPastSessions] = useState<any[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
+  const [pastSearchQuery, setPastSearchQuery] = useState('');
 
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -138,7 +139,8 @@ export default function PublishExam() {
   const fetchPublishedSessions = async () => {
     setIsLoadingSessions(true);
     try {
-      const { data, error } = await supabase
+      const now = new Date().toISOString();
+      const { data: activeData, error: activeError } = await supabase
         .from('exam_sessions')
         .select(`
           id,
@@ -149,15 +151,38 @@ export default function PublishExam() {
           exams (
             title,
             subject,
-            grade
+            grade,
+            duration_minutes
           )
         `)
+        .gt('end_time', now)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setPublishedSessions(data || []);
+      if (activeError) throw activeError;
+      setPublishedSessions(activeData || []);
+
+      const { data: pastData, error: pastError } = await supabase
+        .from('exam_sessions')
+        .select(`
+          id,
+          target_classes,
+          start_time,
+          end_time,
+          status,
+          exams (
+            title,
+            subject,
+            grade,
+            duration_minutes
+          )
+        `)
+        .lte('end_time', now)
+        .order('end_time', { ascending: false });
+
+      if (pastError) throw pastError;
+      setPastSessions(pastData || []);
     } catch (error) {
-      console.error('Error fetching published sessions:', error);
+      console.error('Error fetching sessions:', error);
     } finally {
       setIsLoadingSessions(false);
     }
@@ -178,6 +203,7 @@ export default function PublishExam() {
         title: exam.title,
         subject: exam.subject,
         grade: exam.grade,
+        duration_minutes: exam.duration_minutes || 60,
         questionsCount: exam.questions[0]?.count || 0
       }));
       
@@ -214,16 +240,17 @@ export default function PublishExam() {
   const handlePublish = async () => {
     if (!selectedExamId) return alert('الرجاء اختيار امتحان');
     if (selectedClasses.length === 0) return alert('الرجاء اختيار شعبة واحدة على الأقل');
-    if (!isValidDateTime(startDateTime) || !isValidDateTime(endDateTime)) {
-      return alert('الرجاء تحديد موعد البدء والانتهاء بشكل كامل');
+    if (!isValidDateTime(startDateTime)) {
+      return alert('الرجاء تحديد موعد البدء بشكل كامل');
     }
+
+    const selectedExam = exams.find(e => e.id === selectedExamId);
+    if (!selectedExam) return alert('الامتحان غير موجود');
 
     const startDate = createDateFromState(startDateTime);
-    const endDate = createDateFromState(endDateTime);
-
-    if (endDate <= startDate) {
-      return alert('يجب أن يكون موعد الانتهاء بعد موعد البدء');
-    }
+    
+    // Calculate end date based on exam duration
+    const endDate = new Date(startDate.getTime() + selectedExam.duration_minutes * 60000);
 
     setIsPublishing(true);
     
@@ -280,6 +307,13 @@ export default function PublishExam() {
       setIsDeleting(false);
     }
   };
+
+  const filteredPastSessions = pastSessions.filter(session => {
+    const searchLower = pastSearchQuery.toLowerCase();
+    const titleMatch = session.exams?.title?.toLowerCase().includes(searchLower);
+    const dateMatch = new Date(session.start_time).toLocaleDateString('ar-EG').includes(searchLower);
+    return titleMatch || dateMatch;
+  });
 
   return (
     <MainLayout>
@@ -356,10 +390,11 @@ export default function PublishExam() {
                       <Circle className="w-5 h-5 text-gray-300 shrink-0" />
                     )}
                   </div>
-                  <div className="flex gap-3 text-sm text-gray-500">
+                  <div className="flex flex-wrap gap-2 sm:gap-3 text-xs sm:text-sm text-gray-500">
                     <span className="bg-gray-100 px-2 py-1 rounded-md">الصف {exam.grade}</span>
                     <span className="bg-gray-100 px-2 py-1 rounded-md">{exam.subject}</span>
                     <span className="bg-gray-100 px-2 py-1 rounded-md">{exam.questionsCount} سؤال</span>
+                    <span className="bg-gray-100 px-2 py-1 rounded-md">{exam.duration_minutes} دقيقة</span>
                   </div>
                 </div>
               ))}
@@ -430,12 +465,6 @@ export default function PublishExam() {
               label="موعد بدء الامتحان" 
               value={startDateTime} 
               onChange={setStartDateTime} 
-            />
-            
-            <DateTimeSelector 
-              label="موعد انتهاء الامتحان" 
-              value={endDateTime} 
-              onChange={setEndDateTime} 
             />
 
             <div className="space-y-2 mt-4">
@@ -516,6 +545,66 @@ export default function PublishExam() {
                   >
                     حذف النشر
                   </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+
+        {/* Step 5: Past Sessions */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="bg-white p-4 sm:p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 shrink-0 bg-gray-50 text-gray-600 rounded-xl flex items-center justify-center">
+                <History className="w-5 h-5" />
+              </div>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900">الامتحانات التي تم تقديمها</h2>
+            </div>
+            
+            {/* Search Bar */}
+            <div className="relative w-full sm:w-64">
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
+                <Search className="w-4 h-4" />
+              </div>
+              <input
+                type="text"
+                placeholder="بحث بالاسم أو التاريخ..."
+                value={pastSearchQuery}
+                onChange={(e) => setPastSearchQuery(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pr-9 pl-4 text-sm focus:ring-2 focus:ring-gray-200 outline-none transition-all"
+              />
+            </div>
+          </div>
+
+          {isLoadingSessions ? (
+            <div className="text-center py-8 text-gray-500">جاري تحميل الامتحانات السابقة...</div>
+          ) : filteredPastSessions.length === 0 ? (
+            <div className="text-center py-8 bg-gray-50 rounded-2xl border border-dashed border-gray-200 text-gray-500">
+              لا يوجد امتحانات سابقة مطابقة للبحث
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredPastSessions.map(session => (
+                <div key={session.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 rounded-2xl border border-gray-100 bg-white hover:bg-gray-50 transition-colors gap-4">
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-1">{session.exams?.title}</h3>
+                    <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+                      <span className="bg-gray-100 px-2 py-1 rounded border border-gray-200">
+                        الصفوف: {session.target_classes.join('، ')}
+                      </span>
+                      <span className="bg-gray-100 px-2 py-1 rounded border border-gray-200">
+                        المدة: {session.exams?.duration_minutes} دقيقة
+                      </span>
+                      <span className="bg-gray-100 px-2 py-1 rounded border border-gray-200">
+                        تاريخ التقديم: {new Date(session.start_time).toLocaleDateString('ar-EG')}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
